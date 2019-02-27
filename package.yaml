@@ -1,0 +1,100 @@
+name:                ptghci-engine
+version:             0.1.0.0
+github:              "githubuser/ptghci-engine"
+license:             BSD3
+author:              "Author name here"
+maintainer:          "example@example.com"
+copyright:           "2019 Author name here"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/githubuser/ptghci-engine#readme>
+
+default-extensions:
+- BangPatterns
+- ScopedTypeVariables
+- MultiParamTypeClasses
+- ScopedTypeVariables
+- OverloadedStrings
+- OverloadedLists
+- KindSignatures
+- DataKinds
+- PolyKinds
+- FlexibleInstances
+- DeriveGeneric
+- RecordWildCards
+- DuplicateRecordFields
+- FlexibleContexts
+- DeriveFunctor
+- TypeOperators
+- GeneralizedNewtypeDeriving
+- TypeFamilies
+- TupleSections
+- NamedFieldPuns
+- RankNTypes
+- TypeApplications
+- StandaloneDeriving
+- NoImplicitPrelude
+
+dependencies:
+- base >= 4.7 && < 5
+- protolude
+- text
+- ghcid
+- containers
+- unordered-containers
+- microlens
+- bytestring
+- aeson
+- async
+- thread-hierarchy
+- zeromq4-haskell
+- haskell-src-exts
+- cmdargs
+- unix
+- process
+- pcre-heavy
+- unordered-containers
+- open-browser
+- filepath
+- directory
+- template-haskell
+- megaparsec
+- parser-combinators
+- formatting
+- microlens
+- microlens-th
+
+library:
+  source-dirs: src
+
+executables:
+  ptghci-engine-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - ptghci-engine
+
+tests:
+  ptghci-engine-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - ptghci-engine

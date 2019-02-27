@@ -1,0 +1,12 @@
+
+- History from %hist is not lined up with displayed line no
+- Quitting gracefully
+- Deleting newline with backspace (sometimes)
+- Do notation with "where"
+- Docs not opening to correct anchor (solution: use browser by name instead of xdg-open)
+- Fail gracefully on exception rather than exiting
+- Calculating anchors for data constructors 
+- Weird errors when evaluting a statement that isn't showable
+- Do source/doc lookups work on operators?
+- Open source/doc on qualified name
+- Stdout with rerun (output should come AFTER ==Output== label)
