@@ -17,6 +17,7 @@ import Data.Maybe
 import System.ZMQ4
 import System.Environment (getArgs)
 import Data.Aeson
+import qualified Debug.Trace as Debug
 import GHC.Generics hiding (Rep)
 import Control.Concurrent.Async
 import Language.Haskell.Ghcid hiding (Error)
@@ -91,7 +92,7 @@ runApp = do
                                   "Expected two connection ports to be given on command line"
 
             exec ghci ":set -fdiagnostics-color=always"
-            exec ghci ":set -fno-it"
+            -- exec ghci ":set -fno-it"
             exec ghci ":set prompt-cont #~GHCID-START~#"
             -- exec ghci ":set +m"
             withAsync (awaitInterrupt (controlSock sockets) ghci) 
@@ -112,7 +113,6 @@ runApp = do
               withAsync (runMultiline env code)
                         $ \a2 -> do
                           result <- wait a2
-                          print  (show $ head result :: Text)
                           let response = ExecResponse True (T.unlines result)
                           sendResponse requestSock response
 
@@ -171,7 +171,7 @@ runMultilineStream :: Env -> Sockets -> Text -> IO ()
 runMultilineStream env Sockets{..} cmd 
   = execStream (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n") callback
   where
-    callback stream val =
+  callback stream val =
       case stream of
         Stdout -> send stdoutSock [] $ toS val
         Stderr -> send stderrSock [] $ toS val
