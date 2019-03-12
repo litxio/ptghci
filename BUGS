@@ -1,14 +1,21 @@
 
-- Do notation with "where"
-- Fail gracefully on exception rather than exiting
+- Sometimes, a keyboard interrupt interrupts the python program but not GHCi; this can result in a frozen program because Haskell doesn't sent a response (as it would if GHCi was successully interrupted), and so the Python-side socket will keep waiting for a response from GHCi that never comes.  Sometimes in vanilla GHCi it takes two Ctrl-C to interrupt successfully, for some reason.
+    ==> This appears to be a limitation with ghcid, which will not 
+- When there is more than one error, the second one seems to get printed out after the next input prompt
+ (more generally -- do I always show the prompt immediately when there's some kind of long-running program??)
 - Calculating anchors for data constructors  (??)
-- Weird errors when evaluting a statement that isn't showable (INTERNAL_GHCID)
-- Do source/doc lookups work on operators?
-- Open source/doc on qualified name
-- Stdout with rerun (output should come AFTER ==Output== label)
+- Anchor source/doc lookups on operators
+- Preservation of 'it'
+- "+t" behavior
+
 
 FIXED
+- Completion: immediately go to first match
+- Stdout with rerun (output should come AFTER ==Output== label)
+- Fail gracefully on exception rather than exiting
+- Weird errors when evaluting a statement that isn't showable (INTERNAL_GHCID)
 - History from %hist is not lined up with displayed line no
 - Quitting gracefully
 - Deleting newline with backspace (sometimes)
 - Docs not opening to correct anchor (solution: use browser by name instead of xdg-open)
+- Open source/doc on qualified name

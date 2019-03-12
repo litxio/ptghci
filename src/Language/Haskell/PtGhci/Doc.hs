@@ -71,15 +71,16 @@ findDocForIdentifier env name = do
   res <- Exception.try $ foldr1 (<|>) (checkExists <$> possiblePaths)
          :: IO (Either IOException FilePath)
   case res of
-    Right fullPath -> return $ "file://"++fullPath++anchor name
+    Right fullPath -> return $ "file://"++fullPath++anchor
     Left _ -> throw $ DocNotFoundException $ pack
                   $ "Couldn't find documentation file in any of the following locations: "
                     ++ show possiblePaths
   where
-    anchor :: Text -> FilePath
-    anchor name
-      | isType name = unpack $ "#t:"<>name
-      | otherwise   = unpack $ "#v:"<>name
+    anchor :: FilePath
+    anchor
+      | isType baseName = unpack $ "#t:"<>baseName
+      | otherwise       = unpack $ "#v:"<>baseName
+    baseName = last (T.split (=='.') name)
 
 
 openDocSourceForIdentifier :: Env -> Text -> IO Text
@@ -105,12 +106,13 @@ findDocSourceForIdentifier env name = do
   res <- Exception.try $ foldr1 (<|>) (checkExists <$> possiblePaths)
          :: IO (Either IOException FilePath)
   case res of
-    Right fullPath -> return $ "file://"++fullPath++anchor name
+    Right fullPath -> return $ "file://"++fullPath++anchor
     Left _ -> throw $ DocNotFoundException $ pack
                   $ "Couldn't find source code in any of the following locations: "
                     ++ show possiblePaths
   where
-    anchor name = unpack $ "#" <> name
+    anchor = unpack $ "#" <> baseName
+    baseName = last (T.split (=='.') name)
 
 
 docBasePathCandidates :: Module -> IO [FilePath]

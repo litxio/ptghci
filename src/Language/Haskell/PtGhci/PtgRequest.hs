@@ -10,6 +10,7 @@ import Data.Text
 
 data PtgRequest = RequestExec { content :: Text }
                   | RequestExecStream { content :: Text }
+                  | RequestType { identifier :: Text }
                   | RequestLoadMessages
                   | RequestOpenDoc { identifier :: Text }
                   | RequestOpenSource { identifier :: Text }

@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
 
 module Language.Haskell.PtGhci.App where
 
@@ -22,22 +23,22 @@ import GHC.Generics hiding (Rep)
 import Control.Concurrent.Async
 import Language.Haskell.Ghcid hiding (Error)
 import Data.Text (Text, pack, unpack)
+import Data.List ((!!))
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import System.Posix.Process (joinProcessGroup)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString as BS
+import Text.Regex.PCRE.Heavy
 import Formatting
+import System.Console.CmdArgs.Verbosity
 import Language.Haskell.PtGhci.PtgRequest as PtgRequest
 import Language.Haskell.PtGhci.PtgResponse as PtgResponse
 import Language.Haskell.PtGhci.Doc
+import Language.Haskell.PtGhci.Exception
 import Language.Haskell.PtGhci.Env
 import Language.Haskell.PtGhci.Log
 
-
-data PtgException = ConfigurationError Text
-  deriving Show
-instance Exception PtgException
 
 data Sockets = Sockets 
   { requestSock :: Socket Rep
@@ -71,6 +72,13 @@ runApp :: IO ()
 runApp = do
   -- putStrLn "Connected"
   -- send requester [] "Hello"
+  --
+
+  args <- getArgs
+  config <- if length args > 4
+               then loadConfig (args !! 4) 
+               else return defaultConfig
+  when (config ^. verbosity >= Just Trace) $ setVerbosity Loud
 
   -- This keeps interrupt signal from the parent (python) process from messing
   -- up our executions. TODO this won't work on Windows -- do I need it?
@@ -79,8 +87,8 @@ runApp = do
   bracket (startGhci "stack ghci" Nothing (\_ _ -> return ()))
           (stop . fst)
           $ \(ghci, loadMsgs) -> do
-            let env = Env defaultConfig {_webBrowser = Just "firefox"} ghci
-            args <- getArgs
+            env <- mkEnv config ghci
+            -- When verbosity is Trace, make ghcid loud too
 
             sockets <- case (,,,) <$> head args
                                   <*> (args !? 1) 
@@ -89,7 +97,8 @@ runApp = do
                 Just (reqPort, controlPort, stdoutPort, stderrPort) ->
                   setupSockets env reqPort controlPort stdoutPort stderrPort
                 Nothing -> throw $ ConfigurationError
-                                  "Expected two connection ports to be given on command line"
+                                  "Expected two connection ports to be given on\
+                                    \ command line"
 
             exec ghci ":set -fdiagnostics-color=always"
             -- exec ghci ":set -fno-it"
@@ -102,9 +111,10 @@ runApp = do
     loop env sockets@Sockets{..} loadMsgs = do
       request <- receive requestSock
       let req = decode (BSL.fromStrict request) :: Maybe PtgRequest
+      debug env ("Got request " <> show req :: Text)
    
       case req of
-        Nothing -> sendResponse requestSock 
+        Nothing -> sendResponse env requestSock 
                     $ ExecResponse False
                     $ "Request not understood" <> decodeUtf8 request
         Just msg ->
@@ -114,18 +124,25 @@ runApp = do
                         $ \a2 -> do
                           result <- wait a2
                           let response = ExecResponse True (T.unlines result)
-                          sendResponse requestSock response
+                          sendResponse env requestSock response
 
             RequestExecStream code ->
               withAsync (runMultilineStream env sockets code)
                         $ \a2 -> do
                           result <- wait a2
                           let response = ExecResponse True ""
-                          sendResponse requestSock response
+                          sendResponse env requestSock response
 
             RequestLoadMessages ->
               let response = LoadMessagesResponse True loadMsgs
-               in sendResponse requestSock response
+               in sendResponse env requestSock response
+
+            RequestType identifier -> do
+              result <- runLine env $ ":t " <> identifier
+              -- putStrLn $ "First line of result: " <> stripAnsi (fromJust (head result))
+              let response = ExecResponse (not $ checkForError result)
+                                          (T.strip $ T.unlines $ dropBlankLines result)
+              sendResponse env requestSock response
 
             RequestOpenDoc identifier -> do
               result <- try $ findDocForIdentifier env identifier
@@ -134,7 +151,7 @@ runApp = do
                       Right path -> ExecResponse True $ pack path
                       Left (ex :: DocException) ->
                         ExecResponse False $ showDocException ex
-              sendResponse requestSock response
+              sendResponse env requestSock response
 
             RequestOpenSource identifier -> do
               result <- try $ findDocSourceForIdentifier env identifier
@@ -143,43 +160,66 @@ runApp = do
                       Right path -> ExecResponse True $ pack path
                       Left (ex :: DocException) ->
                         ExecResponse False $ showDocException ex
-              sendResponse requestSock response
+              sendResponse env requestSock response
 
-sendResponse :: Sender a => Socket a -> PtgResponse -> IO ()
-sendResponse sock msg = send sock [] $ BSL.toStrict $ encode msg
+sendResponse :: Sender a => Env -> Socket a -> PtgResponse -> IO ()
+sendResponse env sock msg = do
+  debug env ("Sending response: " <> show msg :: Text)
+  send sock [] $ BSL.toStrict $ encode msg
 
 onUserInterrupt UserInterrupt = return $ Left ()
 onUserInterrupt e = throw e
 
--- runAndType :: Env -> Text -> IO ([Text], Maybe Text)
--- runAndType env cmd = do
---   resp <- T.unlines <$> runMultiline env (":t " <> cmd)
---   let typeName = if isErrorResponse resp
---                     then Nothing
---                     else last $ T.splitOn " :: " resp
---   (,typeName) <$> runMultiline env cmd
+-- ghcid imports several modules under the name "INTERNAL_GHCID".  Showing
+-- this import name will just be confusing to the end user, so strip it out
+-- whenever it appears in a message.
+stripInternalGhcid :: Text -> Text
+stripInternalGhcid = T.replace "INTERNAL_GHCID." ""
+
+runLine :: Env -> Text -> IO [Text]
+runLine env cmd = fmap (stripInternalGhcid . T.pack)
+                      <$> exec (_ghci env) (T.unpack cmd)
 
 runMultiline :: Env -> Text -> IO [Text]
-runMultiline env cmd = eatIt . fmap T.pack <$> exec (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n")
+runMultiline env cmd = fmap (stripInternalGhcid . T.pack) 
+                          <$> exec (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n")
+
+runMultilineStream :: Env -> Sockets -> Text -> IO ()
+runMultilineStream env Sockets{..} cmd
+  = execStream (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n") callback
+  where
+  callback stream val =
+      case stream of
+        -- TODO -- double conversion inefficient
+        Stdout -> send stdoutSock [] $ toS (stripInternalGhcid $ toS val)
+        Stderr -> send stderrSock [] $ toS (stripInternalGhcid $ toS val)
+
+
+checkForError :: [Text] -> Bool
+checkForError = checkForError' . dropBlankLines
+  where
+    checkForError' (l:ls) = stripAnsi l =~ [re|^<(\w|\s)+>:(\d+:\d+:)? error:.*|]
+    checkForError' _ = False
+
+-- Ahhhhhhhhhh!!  This comes from https://github.com/chalk/ansi-regex
+ansiRe :: Regex
+ansiRe = [re|[\e\x9B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[a-zA-Z\d]*)*)?\x07)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-ntqry=><~]))|]
+
+stripAnsi :: Text -> Text
+stripAnsi t = gsub ansiRe (""::Text) (T.strip t)
+
+dropBlankLines :: [Text] -> [Text]
+dropBlankLines = filter ((/= "") . T.strip)
 
 -- | Remove leading lines like "it :: ()".  This happens when +t is on because
 -- of the inner workings of ghcid.
 eatIt :: [Text] -> [Text]
 eatIt = dropWhile (== "it :: ()") 
 
-runMultilineStream :: Env -> Sockets -> Text -> IO ()
-runMultilineStream env Sockets{..} cmd 
-  = execStream (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n") callback
-  where
-  callback stream val =
-      case stream of
-        Stdout -> send stdoutSock [] $ toS val
-        Stderr -> send stderrSock [] $ toS val
-
 awaitInterrupt :: Receiver a => Socket a -> Ghci -> IO ()
 awaitInterrupt sock ghci = forever $ do
   request <- receive sock
-  -- putText "Handling interrupt"
+  putText "Handling interrupt"
   let reqStr = unpack $ decodeUtf8 request
   when (reqStr == "Interrupt") (interrupt ghci)
 

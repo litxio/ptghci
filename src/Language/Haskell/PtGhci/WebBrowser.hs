@@ -2,7 +2,6 @@ module Language.Haskell.PtGhci.WebBrowser where
 
 import Language.Haskell.PtGhci.Prelude
 import Language.Haskell.PtGhci.Env
-import Language.Haskell.PtGhci.Monad
 import System.Exit (ExitCode(..))
 import System.Process (rawSystem)
 import Data.Text (unpack)

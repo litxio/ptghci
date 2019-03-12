@@ -10,6 +10,8 @@ extra-source-files:
 - README.md
 - ChangeLog.md
 
+# data-files: pybits/**/*.py
+
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
 # category:            Web
@@ -73,6 +75,7 @@ dependencies:
 - formatting
 - microlens
 - microlens-th
+- yaml
 
 library:
   source-dirs: src
@@ -87,6 +90,9 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - ptghci-engine
+      # c-sources: cbits/ptghci-shim.c
+      # include-dirs: cbits
+      # pkg-config-dependencies: python3
 
 tests:
   ptghci-engine-test:
