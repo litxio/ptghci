@@ -8,9 +8,9 @@ import GHC.Generics
 import Data.Aeson
 import Data.Text
 
-data PtgRequest = RequestExec { content :: Text }
+data PtgRequest = RequestExecCapture { content :: Text }
                   | RequestExecStream { content :: Text }
-                  | RequestType { identifier :: Text }
+                  | RequestType { identifier :: Text, showHoleFits :: Bool }
                   | RequestLoadMessages
                   | RequestOpenDoc { identifier :: Text }
                   | RequestOpenSource { identifier :: Text }

@@ -18,3 +18,6 @@ info e t = when (getVerbosity e >= Info) $ writeLog e (toS t)
 
 debug :: StringConv a Text => Env -> a -> IO ()
 debug e t = when (getVerbosity e >= Debug) $ writeLog e (toS t)
+
+trace :: StringConv a Text => Env -> a -> IO ()
+trace e t = when (getVerbosity e >= Trace) $ writeLog e (toS t)

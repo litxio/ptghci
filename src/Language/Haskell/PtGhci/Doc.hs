@@ -12,7 +12,6 @@ import Text.Regex.PCRE.Heavy
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Text (Text, pack, unpack)
-import Language.Haskell.Ghcid
 import System.Process
 import Data.Char (isUpper)
 import Text.Printf
@@ -26,6 +25,7 @@ import qualified Data.HashMap.Strict as HM
 import Text.Megaparsec hiding (match)
 import Text.Megaparsec.Char
 import Control.Monad.Combinators
+import Language.Haskell.PtGhci.Ghci
 import Language.Haskell.PtGhci.WebBrowser
 import Language.Haskell.PtGhci.Env
 
@@ -187,7 +187,7 @@ getStackPaths = do
 findModuleForIdentifier :: Ghci -> Text -> IO Module
 findModuleForIdentifier ghci [] = throw $ BadIdentifier "Empty identifier"
 findModuleForIdentifier ghci name = do
-  infoLines <- exec ghci $ ":info " ++ unpack name
+  infoLines <- fst <$> (execCapture ghci $ ":info " ++ unpack name)
   let firstMatch = find ("-- Defined in" `isInfixOf`) infoLines
   case firstMatch >>= eitherToMaybe . parse moduleParser "" . pack of
     Just (Just pkg, modName) -> return $ Module pkg modName
@@ -220,7 +220,7 @@ stackOpenDoc packageName = callProcess "stack" ["haddock", "--open",
 
 getLoadedPackages :: Ghci -> IO [VersionQualifiedPackage]
 getLoadedPackages ghci = do
-  showResult <- exec ghci ":show packages"
+  showResult <- fst <$> execCapture ghci ":show packages"
   let matches = scan r . pack <$> showResult
   return $ catMaybes $ mkVQPackage <$> matches
   where

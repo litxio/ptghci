@@ -18,12 +18,13 @@ import Data.Maybe
 import System.ZMQ4
 import System.Environment (getArgs)
 import Data.Aeson
+import Control.Concurrent.MVar
 import qualified Debug.Trace as Debug
 import GHC.Generics hiding (Rep)
 import Control.Concurrent.Async
-import Language.Haskell.Ghcid hiding (Error)
+import Language.Haskell.PtGhci.Ghci-- hiding (Error)
 import Data.Text (Text, pack, unpack)
-import Data.List ((!!))
+import Data.List ((!!), isInfixOf)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import System.Posix.Process (joinProcessGroup)
@@ -47,16 +48,12 @@ data Sockets = Sockets
   , stderrSock :: Socket Pub 
   }
 
-setupSockets :: Env
-             -> Base.String 
+setupSockets :: Base.String 
              -> Base.String 
              -> Base.String 
              -> Base.String 
              -> IO Sockets
-setupSockets c reqPort controlPort stdoutPort stderrPort = do
-  info c $ format ("Request/control sockets: "%string%", "%string
-                   %", "%string%", "%string)
-                   reqPort controlPort stdoutPort stderrPort
+setupSockets reqPort controlPort stdoutPort stderrPort = do
   ctx <- context
   requester <- socket ctx Rep
   controlSock <- socket ctx Pair
@@ -84,25 +81,38 @@ runApp = do
   -- up our executions. TODO this won't work on Windows -- do I need it?
   joinProcessGroup 0
 
-  bracket (startGhci "stack ghci" Nothing (\_ _ -> return ()))
-          (stop . fst)
-          $ \(ghci, loadMsgs) -> do
-            env <- mkEnv config ghci
-            -- When verbosity is Trace, make ghcid loud too
-
-            sockets <- case (,,,) <$> head args
-                                  <*> (args !? 1) 
-                                  <*> (args !? 2) 
-                                  <*> (args !? 3) of
-                Just (reqPort, controlPort, stdoutPort, stderrPort) ->
-                  setupSockets env reqPort controlPort stdoutPort stderrPort
-                Nothing -> throw $ ConfigurationError
+  sockets <- case (,,,) <$> head args
+                        <*> (args !? 1) 
+                        <*> (args !? 2) 
+                        <*> (args !? 3) of
+      Just (reqPort, controlPort, stdoutPort, stderrPort) ->
+        setupSockets reqPort controlPort stdoutPort stderrPort
+      Nothing -> throw $ ConfigurationError
                                   "Expected two connection ports to be given on\
                                     \ command line"
 
-            exec ghci ":set -fdiagnostics-color=always"
+  promptFlag <- newEmptyMVar :: IO (MVar ())
+  let sendOutput stream val =
+        case stream of
+          -- TODO -- double conversion inefficient
+          Stdout -> do
+            -- putStrLn ("Sending on stdout: " <> val) 
+            send (stdoutSock sockets) [] $ toS (stripInternalGhcid $ toS val)
+          Stderr -> send (stderrSock sockets) [] $ toS (stripInternalGhcid $ toS val)
+
+  bracket (startGhci "stack ghci" Nothing sendOutput)
+          (stop . fst)
+          $ \(ghci, loadMsgs) -> do
+            env <- mkEnv config ghci
+            -- info env $ format ("Request/control sockets: "%string%", "%string
+            --                    %", "%string%", "%string)
+            --                    reqPort controlPort stdoutPort stderrPort
+            -- When verbosity is Trace, make ghcid loud too
+
+
+            execCapture ghci ":set -fdiagnostics-color=always"
             -- exec ghci ":set -fno-it"
-            exec ghci ":set prompt-cont #~GHCID-START~#"
+            execCapture ghci ":set prompt-cont \"\""
             -- exec ghci ":set +m"
             withAsync (awaitInterrupt (controlSock sockets) ghci) 
              $ \intThread -> forever $ loop env sockets loadMsgs
@@ -119,13 +129,17 @@ runApp = do
                     $ "Request not understood" <> decodeUtf8 request
         Just msg ->
           case msg of
-            RequestExec code ->
+            -- Capture all stdout between the command and next prompt
+            RequestExecCapture code ->
               withAsync (runMultiline env code)
                         $ \a2 -> do
-                          result <- wait a2
-                          let response = ExecResponse True (T.unlines result)
+                          (outRes, errRes) <- wait a2
+                          let response = if checkForError outRes errRes
+                                            then ExecResponse False (T.unlines errRes)
+                                            else ExecResponse True (T.unlines outRes)
                           sendResponse env requestSock response
 
+            -- Don't capture result, just echo over the stdout/stderr sockets
             RequestExecStream code ->
               withAsync (runMultilineStream env sockets code)
                         $ \a2 -> do
@@ -137,11 +151,23 @@ runApp = do
               let response = LoadMessagesResponse True loadMsgs
                in sendResponse env requestSock response
 
-            RequestType identifier -> do
-              result <- runLine env $ ":t " <> identifier
-              -- putStrLn $ "First line of result: " <> stripAnsi (fromJust (head result))
-              let response = ExecResponse (not $ checkForError result)
-                                          (T.strip $ T.unlines $ dropBlankLines result)
+            RequestType identifier showHoleFits -> do
+              -- This request is used for the bottom toolbar, and so needs to
+              -- complete quickly.  Showing hole fits greatly slows things down
+              -- when an identifier begins with underscore.  So we turn it off
+              -- then re-enable it.  TODO: figure out how to respect the
+              -- initial state of the show-valid-hole-fits flag.
+              when (T.take 1 identifier == "_" && not showHoleFits)
+                $ void $ runLine env ":set -fno-show-valid-hole-fits"
+              (outRes, errRes) <- runLine env $ ":t " <> identifier
+              when (T.take 1 identifier == "_" && not showHoleFits)
+                $ void $ runLine env ":set -fshow-valid-hole-fits"
+              debug env $ "type req stdout: " <> stripAnsi (T.unlines outRes)
+              debug env $ "type req stderr: " <> stripAnsi (T.unlines errRes)
+              let response = if checkForError outRes errRes
+                                then ExecResponse False (T.strip $ T.unlines $ dropBlankLines errRes)
+                                else ExecResponse True (T.strip $ T.unlines $ dropBlankLines outRes)
+
               sendResponse env requestSock response
 
             RequestOpenDoc identifier -> do
@@ -176,30 +202,28 @@ onUserInterrupt e = throw e
 stripInternalGhcid :: Text -> Text
 stripInternalGhcid = T.replace "INTERNAL_GHCID." ""
 
-runLine :: Env -> Text -> IO [Text]
-runLine env cmd = fmap (stripInternalGhcid . T.pack)
-                      <$> exec (_ghci env) (T.unpack cmd)
+runLine :: Env -> Text -> IO ([Text], [Text])
+runLine env cmd = do
+  results <- execCapture (_ghci env) (T.unpack cmd)
+  return $ both (fmap $ stripInternalGhcid . T.pack) results
+  where
+    both f = bimap f f
 
-runMultiline :: Env -> Text -> IO [Text]
-runMultiline env cmd = fmap (stripInternalGhcid . T.pack) 
-                          <$> exec (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n")
+runMultiline :: Env -> Text -> IO ([Text], [Text])
+runMultiline env cmd = runLine env (":{\n"<>cmd<>"\n:}\n")
 
 runMultilineStream :: Env -> Sockets -> Text -> IO ()
 runMultilineStream env Sockets{..} cmd
-  = execStream (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n") callback
-  where
-  callback stream val =
-      case stream of
-        -- TODO -- double conversion inefficient
-        Stdout -> send stdoutSock [] $ toS (stripInternalGhcid $ toS val)
-        Stderr -> send stderrSock [] $ toS (stripInternalGhcid $ toS val)
+  = execStream (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n")
 
+checkForError :: [Text]-> [Text] -> Bool
+checkForError stdout stderr = isBlank stdout && not (isBlank stderr)
+--   where
+--     checkForError' (l:ls) = stripAnsi l =~ [re|^<(\w|\s)+>:(\d+:\d+:)? error:.*|]
+--     checkForError' _ = False
 
-checkForError :: [Text] -> Bool
-checkForError = checkForError' . dropBlankLines
-  where
-    checkForError' (l:ls) = stripAnsi l =~ [re|^<(\w|\s)+>:(\d+:\d+:)? error:.*|]
-    checkForError' _ = False
+isBlank :: [Text] -> Bool
+isBlank = T.null . T.strip . T.unlines
 
 -- Ahhhhhhhhhh!!  This comes from https://github.com/chalk/ansi-regex
 ansiRe :: Regex
@@ -209,12 +233,14 @@ stripAnsi :: Text -> Text
 stripAnsi t = gsub ansiRe (""::Text) (T.strip t)
 
 dropBlankLines :: [Text] -> [Text]
-dropBlankLines = filter ((/= "") . T.strip)
+dropBlankLines = filter ((not . T.null) . T.strip)
 
 -- | Remove leading lines like "it :: ()".  This happens when +t is on because
 -- of the inner workings of ghcid.
 eatIt :: [Text] -> [Text]
 eatIt = dropWhile (== "it :: ()") 
+
+
 
 awaitInterrupt :: Receiver a => Socket a -> Ghci -> IO ()
 awaitInterrupt sock ghci = forever $ do

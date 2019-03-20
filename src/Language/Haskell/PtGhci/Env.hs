@@ -3,8 +3,8 @@
 module Language.Haskell.PtGhci.Env where
   
 import Language.Haskell.PtGhci.Prelude
+import Language.Haskell.PtGhci.Ghci
 import GHC.Generics
-import Language.Haskell.Ghcid hiding (Error)
 import Lens.Micro.TH
 import Data.Aeson
 import Control.Exception (throw)

@@ -5,9 +5,16 @@
  (more generally -- do I always show the prompt immediately when there's some kind of long-running program??)
 - Calculating anchors for data constructors  (??)
 - Anchor source/doc lookups on operators
-- Preservation of 'it'
 - "+t" behavior
-
+- Visual mode delete cuts one too many characters
+- stdin (getLine, etc) doesn't work
+- debugger (trace) is brokern -- due to stdin breakage
+- using the ":module XXX" form without + or - removes GHCID_INTERNAL and breaks things
+- Completion when there's a prefix operator in front (e.g. "module -XXX")
+- Too many damn newlines
+- Rerun within rerun -- don't create additional "Executing... Output" blocks
+- 'it' is broken again
+- Sometimes the prompt is printed before output is done (when big output)
 
 FIXED
 - Completion: immediately go to first match
@@ -19,3 +26,31 @@ FIXED
 - Deleting newline with backspace (sometimes)
 - Docs not opening to correct anchor (solution: use browser by name instead of xdg-open)
 - Open source/doc on qualified name
+
+HOW TO DEAL WITH GHCID LIMITATIONS
+Ghcid works as follows, when given a command:
+- Get locks to determing we aren't Interrupting or already Running
+- Send the command
+- use "syncFresh" to send a special PRINT command that will put a message on STDOUT/STDERR once the command is done executing; and return a predicate function that determines when a given line of OUT/ERR represents the special message
+- (roughly) wait for the special message
+
+Problems:
+- Cannot distinguish between "result of a command" and "stuff printed asyncronously after a command is done".  I just see "stuff printed by GHCi"  Therefore, once I see the special "sync" message, I think the command has finished executing and there should be no further messages.  
+
+Solutions?
+- Just keep echoing STDOUT and STDERR
+  - But often I need to take a result from GHCI and process it.  How do I distinguish between stuff printed by user code, and stuff produced by GHCi (e.g. result of :t)?
+  - A partial solution to the above is to use a special pretty printer, but this works only for the result of evaluations
+  - A better solution (?) somehow change the stdout/stderr handles seen by user code... e.g. by running it using the silently package.
+      changeStdout >> usercode >> restoreStdout
+    But, I guess this won't work if there are overlapping threads writing to stdout 
+  - Can I somehow temporarily stop all printout to "stdout" when I need?  Yes!  Redirect stdout to a file, then get an exclusive lock whenever we need some result from GHCI.
+    - But wait - file locks are per-process not per-thread
+    - As a super-ugly workaround, I could spin up another process for the sole purpose of locking the temp file... or make use of the fact that I'm already running two processes (engine + ghci)
+    - So basic idea:
+      1) Redirect stdout to a file
+      2) Spin up a thread that tails this file and sends it to the front end
+      3) When I need to execute a "special" command, get an exclusive lock on the file
+
+- Is this impossible to solve?  Fundamentally commands like ':t' and user print statements will all print to the same stdout handle.  Doing "something" to stdout will affect both.  If I could ONLY redirect output within a certain 
+- Perhaps instead of trying to fiddle with handles, I can arrange for user code to run in a separate thread and (somehow) externally pause this thread when I need GHCI to myself..?

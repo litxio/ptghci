@@ -76,6 +76,8 @@ dependencies:
 - microlens
 - microlens-th
 - yaml
+- extra
+- stm
 
 library:
   source-dirs: src

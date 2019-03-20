@@ -6,7 +6,7 @@ module Language.Haskell.PtGhci.Prelude
   , String
 ) where 
 
-import Protolude as P hiding ((%), to)
+import Protolude as P hiding ((%), to, trace)
 import Lens.Micro as MicroLens
 import qualified Protolude as P
 import qualified Data.Text as T
