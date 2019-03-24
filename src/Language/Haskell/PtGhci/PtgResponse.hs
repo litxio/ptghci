@@ -9,9 +9,13 @@ import Data.Text
 import Language.Haskell.Ghcid
 import Language.Haskell.PtGhci.Orphans
 
-data PtgResponse = ExecResponse
+data PtgResponse = ExecCaptureResponse
                       { success :: Bool
                       , content :: Text }
+                   | ExecStreamResponse
+                      { success :: Bool
+                      , errorMessage :: Maybe Text
+                      , syncVal :: Int }
                    | LoadMessagesResponse
                       { success :: Bool
                       , messages :: [Load] }

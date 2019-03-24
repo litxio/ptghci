@@ -6,7 +6,7 @@ module Language.Haskell.PtGhci.Ghci (
   ) where
 
 
-import Language.Haskell.PtGhci.Prelude hiding (traceIO)
+import Language.Haskell.PtGhci.Prelude hiding (traceIO, appendFile)
 import Debug.Trace (trace, traceIO)
 import System.Process
 import Prelude (fail)
@@ -14,10 +14,11 @@ import Data.Unique
 import Data.Data
 import System.IO hiding (hPutStrLn, putStr, putStrLn, print)
 import System.IO.Error
-import System.IO.Extra hiding (hPutStrLn, putStr, putStrLn, print)
+import System.IO.Extra hiding (hPutStrLn, putStr, putStrLn, print, appendFile)
 import Control.Concurrent.Extra
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
+import GHC.Conc (unsafeIOToSTM)
 import System.Time.Extra
 import Control.Exception.Extra hiding (throwIO)
 import Data.List.Extra hiding (map, head)
@@ -28,6 +29,11 @@ import Language.Haskell.Ghcid.Parser
 import Language.Haskell.Ghcid.Types
 import Language.Haskell.Ghcid.Util
 
+streamLogFile = "streams.log"
+
+appendLine :: Handle -> String -> IO ()
+appendLine h s = hPutStrLn h (s ++ "\n")
+
 -- | A GHCi session. Created with 'startGhci', closed with 'stopGhci'.
 --
 --   The interactions with a 'Ghci' session must all occur single-threaded,
@@ -36,12 +42,14 @@ import Language.Haskell.Ghcid.Util
 data Ghci = Ghci
     {ghciProcess :: ProcessHandle
     ,ghciInterrupt :: IO ()
-    ,ghciExec :: String -> IO ()
+    ,ghciExec :: String -> IO Int
+    ,ghciExecCapture :: String -> IO ([String], [String])
     ,ghciUnique :: Unique
-    ,ghciOutPromptFlag :: TMVar ()
-    ,ghciErrPromptFlag :: TMVar ()
-    ,ghciCapturedOut :: IORef (Maybe [String])
-    ,ghciCapturedErr :: IORef (Maybe [String])
+    ,ghciLastSeqSeenOut :: TVar Int
+    ,ghciLastSeqSeenErr :: TVar Int
+    ,ghciCapturingSeq :: TMVar Int
+    ,ghciCapturedOut :: TMVar [String]
+    ,ghciCapturedErr :: TMVar [String]
     }
 
 withCreateProc proc f = do
@@ -53,12 +61,16 @@ startGhciProcess process echo0 = do
     let proc = process{std_in=CreatePipe, std_out=CreatePipe, std_err=CreatePipe, create_group=True}
     withCreateProc proc $ \(Just inp) (Just out) (Just err) ghciProcess -> do
 
+        logFileH <- openFile streamLogFile AppendMode
+        hSetBuffering logFileH LineBuffering
+
         hSetBuffering out LineBuffering
         hSetBuffering err LineBuffering
         hSetBuffering inp LineBuffering
         let writeInp x = do
-                whenLoud $ outStrLn $ "%STDIN: " ++ x
+                whenLoud $ appendLine logFileH $ "%STDIN: " ++ x
                 hPutStrLn inp x
+            prompt = "%~#IGNORE#-%"
 
         -- Some programs (e.g. stack) might use stdin before starting ghci (see #57)
         -- Send them an empty line
@@ -68,12 +80,6 @@ startGhciProcess process echo0 = do
         -- string and filter that out.
         let ghcid_prefix = "#~GHCID-START~#"
             removePrefix = dropPrefixRepeatedly ghcid_prefix
-            my_prompt = "#~MY#PROMPT~#"
-            removePrompt s = case stripPrefix my_prompt s of
-                               Nothing -> s
-                               Just ss -> if head ss == Just '\n'
-                                            then removePrompt (drop 1 ss)
-                                            else removePrompt ss
 
         -- At various points I need to ensure everything the user is waiting for has completed
         -- So I send messages on stdout/stderr and wait for them to arrive
@@ -100,7 +106,7 @@ startGhciProcess process echo0 = do
                         Left err -> print err >>
                                       return Nothing
                         Right l -> do
-                            whenLoud $ outStrLn $ "%" ++ upper (show name) ++ ": " ++ l
+                            -- whenLoud $ appendLine logFileH $ "%" ++ upper (show name) ++ ": " ++ l
                             res <- finish $ removePrefix l
                             case res of
                                 Nothing -> rec
@@ -126,29 +132,8 @@ startGhciProcess process echo0 = do
 
         -- is anyone running running an exec statement, ensure only one person talks to ghci at a time
         isRunning <- newLock
-        ghciOutPromptFlag <- newEmptyTMVarIO :: IO (TMVar ())
-        ghciErrPromptFlag <- newEmptyTMVarIO :: IO (TMVar ())
 
-        let ghciExec command = do
-                withLock isInterrupting $ return ()
-                res <- withLockTry isRunning $ do
-                    -- Ensure prompt flags are clear
-                    atomically $ tryTakeTMVar ghciOutPromptFlag
-                                  >> tryTakeTMVar ghciErrPromptFlag
-                    writeInp $ command
-                    -- There's no prompt on stderr, but we need one to know when
-                    -- know when to stop capturing. So make one.
-                    writeInp $ "INTERNAL_GHCID.hPutStrLn INTERNAL_GHCID.stderr \"\\n"
-                                ++ my_prompt ++ "\\n\""
-                    -- stop <- syncFresh
-                    -- void $ consume2 command $ \strm s ->
-                    --     if stop s then return $ Just () else do echo strm s; return Nothing
-                    -- traceIO "Waiting for prompt..."
-                    atomically $ takeTMVar ghciOutPromptFlag >> takeTMVar ghciErrPromptFlag
-                when (isNothing res) $
-                    fail "Ghcid.exec, computation is already running, must be used single-threaded"
-
-        let ghciInterrupt = interruptProcessGroupOf ghciProcess
+            
               -- withLock isInterrupting $
               --   whenM (fmap isNothing $ withLockTry isRunning $ return ()) $ do
               --       whenLoud $ outStrLn "%INTERRUPT"
@@ -164,8 +149,136 @@ startGhciProcess process echo0 = do
 
         ghciUnique <- newUnique
 
-        ghciCapturedOut <- newIORef Nothing
-        ghciCapturedErr <- newIORef Nothing
+        ghciCapturedOut <- newEmptyTMVarIO
+        ghciCapturedErr <- newEmptyTMVarIO
+
+        nextSeq <- newTVarIO 0
+        ghciLastSeqSeenOut <- newTVarIO (-1)
+        ghciLastSeqSeenErr <- newTVarIO (-1)
+        ghciCapturingSeq <- newEmptyTMVarIO
+        let awaitSignal stream i = readTVar (lastSeqSeen stream) >>= check . (>=i)
+            lastSeqSeen stream = case stream of
+                                   Stdout -> ghciLastSeqSeenOut
+                                   Stderr -> ghciLastSeqSeenErr
+
+        let sendSignals seq = do
+              writeInp $ "INTERNAL_GHCID.hPutStrLn INTERNAL_GHCID.stdout \""
+                          ++ mkSignal seq ++ "\""
+              writeInp $ "INTERNAL_GHCID.hPutStrLn INTERNAL_GHCID.stderr \"\\n"
+                          ++ mkSignal seq ++ "\""
+
+        let ghciExec :: String -> IO Int  -- Return the signal value
+            ghciExec command = do
+              withLock isRunning $ do
+                  -- Ensure prompt flags are clear
+                  seq <- atomically $ do
+                    s <- readTVar nextSeq
+                    awaitSignal Stdout (s-1) -- Make sure we're caught up
+                    awaitSignal Stderr (s-1) -- Make sure we're caught up
+                    return s
+                   
+                  writeInp command
+                  writeInp "let that = it"
+                  sendSignals seq
+                  -- writeInp "let it = ___ptghci_it"
+                  -- traceIO "Waiting for prompt..."
+                  atomically $ modifyTVar nextSeq (+1)
+                  return $ seq
+
+
+        let ghciExecCapture :: String -> IO ([String], [String])  -- Return the signal value
+            ghciExecCapture command = do
+              -- withLock isInterrupting $ return ()
+              withLock isRunning $ do
+                  -- Ensure prompt flags are clear
+                  seq <- atomically $ do
+                    s <- readTVar nextSeq
+                    -- unsafeIOToSTM $ appendLine logFileH $ "Wait for stdout (-1)"
+                    awaitSignal Stdout (s-1) -- Make sure we're caught up
+                    -- unsafeIOToSTM $ appendLine logFileH $ "Wait for stderr (-1)"
+                    -- readTVar (lastSeqSeen Stderr)
+                    --  >>= unsafeIOToSTM . (appendLine logFileH . ("  cur sig val: "++) . show)
+                    awaitSignal Stderr (s-1) -- Make sure we're caught up
+                    putTMVar ghciCapturingSeq s
+                    return s
+
+                  writeInp command
+                  writeInp "let that = it"
+                  sendSignals seq
+                  -- writeInp "let it = ___ptghci_it"
+                  -- appendLine logFileH $ "Waiting for prompt..."
+                  atomically $ do
+                    --unsafeIOToSTM $ appendLine logFileH $ "Wait for stdout: " ++ show seq
+                    awaitSignal Stdout seq
+                    --unsafeIOToSTM $ appendLine logFileH $ "Wait for stderr: " ++ show seq
+                    awaitSignal Stderr seq
+                    --unsafeIOToSTM $ appendLine logFileH $ "Barrier 1"
+                    tryTakeTMVar ghciCapturingSeq
+                    --unsafeIOToSTM $ appendLine logFileH $ "Barrier 2"
+                    out <- takeTMVar ghciCapturedOut
+                    --unsafeIOToSTM $ appendLine logFileH $ "Barrier 3"
+                    err <- takeTMVar ghciCapturedErr
+                    modifyTVar nextSeq (+1)
+                    return (dropLeadingBlank out, dropLeadingBlank err)
+                      where dropLeadingBlank [] = []
+                            dropLeadingBlank (s:ss) = if null s then ss
+                                                                else (s:ss)
+
+
+        let ghciInterrupt = interruptProcessGroupOf ghciProcess
+
+        -- sendSignals results in a lot of "it :: ()" being printed out, when
+        -- ':set +t' is active so ignore those.  TODO: Note that this isn't 
+        -- strictly right - sometimes the user executes an IO () action and
+        -- technically should want to see the "it :: ()".
+        let keep line = line /= prompt && line /= "it :: ()"
+
+        let watchStream stream = forever $ (handle (\(e :: SomeException) -> print e)) $ do
+              captureBuffer <- newIORef []
+              forever $ do
+                let h           = if stream == Stdout then out else err
+                    captureDest = if stream == Stdout then ghciCapturedOut 
+                                                      else ghciCapturedErr
+                -- traceIO "Waiting for input on OUT"
+                el <- tryBool isEOFError $ hGetLine h
+                case el of
+                  Left e -> void $ hWaitForInput h (-1)
+                  Right val' -> do
+                    whenLoud (appendLine logFileH $ show stream ++ ": " ++ show val') 
+                    when (keep val') $ do
+                      -- traceIO $ "Read line " ++ val' ++ " -- " ++ show stream
+                      let (val, mbSig) = stripSignal val'
+
+                      (mbCapSeq, lastSeq) <- atomically $ 
+                        (,) <$> tryReadTMVar ghciCapturingSeq
+                            <*> readTVar (lastSeqSeen stream)
+
+                      let capture = case mbCapSeq of
+                                      Nothing -> False
+                                      Just capSeq -> capSeq == lastSeq + 1
+                          dupSig = ((<= lastSeq) <$> mbSig) == Just True && null val
+
+                      -- when capture $ traceIO $ "Capturing for " ++ show mbCapSeq
+
+                      when (not dupSig) $ do
+                        if capture then modifyIORef captureBuffer (val:)
+                                   -- DO send the signal, provided it's not a duplicate
+                                   else echo0 stream val'
+
+                        case mbSig of
+                          Just finishingSeq -> do
+                            appendLine logFileH $ "Finishing " ++ show finishingSeq ++ " -- " ++ show stream
+                            atomically $ writeTVar (lastSeqSeen stream) finishingSeq
+                            capRes <- readIORef captureBuffer
+                            when capture $ do
+                              finishCapture <- if finishingSeq >= fromJust (mbCapSeq)
+                                                  then atomically $ do
+                                                    putTMVar captureDest (reverse capRes)
+                                                    return True
+                                                  else return False
+
+                              when finishCapture $ writeIORef captureBuffer []
+                          Nothing -> return ()
 
         let ghci = Ghci{..}
 
@@ -180,7 +293,7 @@ startGhciProcess process echo0 = do
             else do
                 -- there may be some initial prompts on stdout before I set the prompt properly
                 s <- return $ maybe s (removePrefix . snd) $ stripInfix ghcid_prefix s
-                whenLoud $ outStrLn $ "%STDOUT2: " ++ s
+                whenLoud $ appendLine logFileH $ "%STDOUT2: " ++ s
                 modifyIORef (if strm == Stdout then stdout else stderr) (s:)
                 when (any (`isPrefixOf` s) ["GHCi, version ","GHCJSi, version "]) $ do
                     -- the thing before me may have done its own Haskell compiling
@@ -189,7 +302,7 @@ startGhciProcess process echo0 = do
                     writeInp "import qualified System.IO as INTERNAL_GHCID"
                     writeInp ":unset +t +s" -- see https://github.com/ndmitchell/ghcid/issues/162
                     -- Put a newline after the prompt, because we are using line buffering
-                    writeInp $ ":set prompt " ++ "\"" ++ my_prompt ++ "\\n\""
+                    writeInp $ ":set prompt " ++ "\"" ++ prompt ++ "\\n\""
 
                     -- failure isn't harmful, so do them one-by-one
                     forM_ (ghciFlagsRequired ++ ghciFlagsRequiredVersioned) $ \flag ->
@@ -200,41 +313,28 @@ startGhciProcess process echo0 = do
         r1 <- parseLoad . reverse <$> ((++) <$> readIORef stderr <*> readIORef stdout)
         -- see #132, if hide-source-paths was turned on the modules didn't get printed out properly
         -- so try a showModules to capture the information again
-        r2 <- if any isLoading r1 then return [] else map (uncurry Loading) <$> showModules ghci
+        -- r2 <- if any isLoading r1 then return [] else map (uncurry Loading) <$> showModules ghci
         let r2 = []
 
-        async $ handle (print :: SomeException -> IO ()) $ forever $ do
-            -- traceIO "Waiting for input on OUT"
-            el <- tryBool isEOFError $ hGetLine out
-            case el of
-              Left e -> void $ hWaitForInput out (-1)
-              Right val' -> do
-                let isPrompt = my_prompt `isPrefixOf` val'
-                    val = removePrompt val'
-                when isPrompt $ atomically $ void (tryPutTMVar ghciOutPromptFlag ())
-                                                      -- >>putText "saw prompt" 
-                -- Don't send if the line is just a prompt
-                capturing <- atomicModifyIORef' ghciCapturedOut $ \case
-                    Nothing -> (Nothing, False)
-                    Just cap -> (Just (val:cap), True)
-                unless (capturing || isPrompt && null val) 
-                  $ echo0 Stdout val
 
-        async $ handle (print :: SomeException -> IO ()) $ forever $ do
-          -- traceIO "Waiting for input on ERR"
-          el <- tryBool isEOFError $ hGetLine err
-          case el of
-            Left e -> void $ hWaitForInput err (-1)
-            Right val' -> do
-              let isPrompt = my_prompt `isPrefixOf` val'
-                  val = removePrompt val'
-              when isPrompt $ atomically $ void (tryPutTMVar ghciErrPromptFlag ())
-              -- traceIO ("Sending on ERR " ++ removePrompt val)
-              capturing <- atomicModifyIORef' ghciCapturedErr $ \case
-                  Nothing -> (Nothing, False)
-                  Just cap -> (Just (val:cap), True)
-              unless (capturing || isPrompt && null val) 
-                $ echo0 Stderr val
+        async $ watchStream Stdout
+        async $ watchStream Stderr
+
+        -- async $ handle (print :: SomeException -> IO ()) $ forever $ do
+        --   -- traceIO "Waiting for input on ERR"
+        --   el <- tryBool isEOFError $ hGetLine err
+        --   case el of
+        --     Left e -> void $ hWaitForInput err (-1)
+        --     Right val' -> do
+        --       let isPrompt = my_prompt `isPrefixOf` val'
+        --           val = removePrompt val'
+        --       when isPrompt $ atomically $ void (tryPutTMVar ghciErrPromptFlag ())
+        --       -- traceIO ("Sending on ERR " ++ removePrompt val)
+        --       capturing <- atomicModifyIORef' ghciCapturedErr $ \case
+        --           Nothing -> (Nothing, False)
+        --           Just cap -> (Just (val:cap), True)
+        --       unless (capturing || isPrompt && null val) 
+        --         $ echo0 Stderr val
         --async $ forever $ consume2 "" $ \strm s -> do
         --  putStrLn $ "echoing to stdout: " ++ s
         --  if isInfixOf my_prompt s
@@ -243,6 +343,7 @@ startGhciProcess process echo0 = do
         --             echo0 strm (removePrompt s)
         --     else echo0 strm s
         --  return Nothing
+        --
 
 
         --  ghci "" echo0
@@ -259,31 +360,33 @@ startGhci cmd directory = startGhciProcess (shell cmd){cwd=directory}
 -- | Send a command, get lines of result from stdout and stderr.
 -- Must be called single-threaded.
 execCapture :: Ghci -> String -> IO ([String], [String])
-execCapture ghci cmd = do
+execCapture = ghciExecCapture
   -- signal that we want to start capturing
-  atomicModifyIORef' (ghciCapturedOut ghci) initCapture
-  atomicModifyIORef' (ghciCapturedErr ghci) initCapture
-  -- exec
-  ghciExec ghci cmd
-  -- restore non-capturing state and send back what's been captured
-  -- TODO Although ghciExec won't return until we see the prompt on stdout,
-  -- it's possible that we end capturing before ERR output finshed, and thus
-  -- some stderr gets echoed instead of captured.
-  out <- atomicModifyIORef' (ghciCapturedOut ghci) endCapture
-  err <- atomicModifyIORef' (ghciCapturedErr ghci) endCapture
-  return (out, err)
-  where
-    initCapture Nothing = (Just [], ())
-    initCapture (Just _) = panic "exec must be called single-threaded"
-    endCapture (Just res) = (Nothing, reverse res)
-    endCapture Nothing = panic "Captured output missing"
+  -- atomicModifyIORef' (ghciCapturedOut ghci) initCapture
+  -- atomicModifyIORef' (ghciCapturedErr ghci) initCapture
+  -- -- exec
+  -- signal <- ghciExec ghci cmd
+  -- -- restore non-capturing state and send back what's been captured
+  -- -- TODO Although ghciExec won't return until we see the prompt on stdout,
+  -- -- it's possible that we end capturing before ERR output finshed, and thus
+  -- -- some stderr gets echoed instead of captured.
+  -- awaitSignal signal
+  -- out <- atomicModifyIORef' (ghciCapturedOut ghci) endCapture
+  -- err <- atomicModifyIORef' (ghciCapturedErr ghci) endCapture
+  -- return (out, err)
+  -- where
+  --   initCapture Nothing = (Just [], ())
+  --   initCapture (Just _) = panic "exec must be called single-threaded"
+  --   endCapture (Just res) = (Nothing, reverse res)
+  --   endCapture Nothing = panic "Captured output missing"
+  --   awaitSignal i = 
 
 -- | List the modules currently loaded, with module name and source file.
 -- showModules :: Ghci -> IO [(String,FilePath)]
 -- showModules ghci = parseShowModules <$> exec ghci ":show modules"
 
 -- | Execute a command, echoing results over streams
-execStream :: Ghci -> String -> IO ()
+execStream :: Ghci -> String -> IO Int
 execStream = ghciExec
 
 -- | Interrupt Ghci, stopping the current computation (if any),
@@ -328,3 +431,17 @@ quit ghci =  do
 -- 
 process :: Ghci -> ProcessHandle
 process = ghciProcess
+
+signalPrefix, signalSuffix :: String
+signalPrefix = "#~PTGHCI~SYNC~"
+signalSuffix = "~#"
+
+mkSignal :: Int -> String
+mkSignal seq = signalPrefix++show seq++signalSuffix
+
+stripSignal :: String -> (String, Maybe Int)
+stripSignal s
+  | not (s `startsWith` signalPrefix) = (s, Nothing)
+  | [(sig, rest)] <- reads (drop (length signalPrefix) s)
+  , rest `startsWith` signalSuffix = (drop (length signalSuffix) rest, Just sig)
+startsWith s pre = take (length pre) s == pre

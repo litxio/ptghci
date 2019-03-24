@@ -106,3 +106,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - ptghci-engine
+    - hspec
+    - QuickCheck
+    - silently

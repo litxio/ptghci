@@ -109,7 +109,6 @@ runApp = do
             --                    reqPort controlPort stdoutPort stderrPort
             -- When verbosity is Trace, make ghcid loud too
 
-
             execCapture ghci ":set -fdiagnostics-color=always"
             -- exec ghci ":set -fno-it"
             execCapture ghci ":set prompt-cont \"\""
@@ -125,7 +124,7 @@ runApp = do
    
       case req of
         Nothing -> sendResponse env requestSock 
-                    $ ExecResponse False
+                    $ ExecCaptureResponse False
                     $ "Request not understood" <> decodeUtf8 request
         Just msg ->
           case msg of
@@ -135,17 +134,15 @@ runApp = do
                         $ \a2 -> do
                           (outRes, errRes) <- wait a2
                           let response = if checkForError outRes errRes
-                                            then ExecResponse False (T.unlines errRes)
-                                            else ExecResponse True (T.unlines outRes)
+                                            then ExecCaptureResponse False (T.unlines errRes)
+                                            else ExecCaptureResponse True (T.unlines outRes)
                           sendResponse env requestSock response
 
             -- Don't capture result, just echo over the stdout/stderr sockets
-            RequestExecStream code ->
-              withAsync (runMultilineStream env sockets code)
-                        $ \a2 -> do
-                          result <- wait a2
-                          let response = ExecResponse True ""
-                          sendResponse env requestSock response
+            RequestExecStream code -> do
+              seq <- runMultilineStream env sockets code
+              let response = ExecStreamResponse True Nothing seq
+              sendResponse env requestSock response
 
             RequestLoadMessages ->
               let response = LoadMessagesResponse True loadMsgs
@@ -159,14 +156,18 @@ runApp = do
               -- initial state of the show-valid-hole-fits flag.
               when (T.take 1 identifier == "_" && not showHoleFits)
                 $ void $ runLine env ":set -fno-show-valid-hole-fits"
+
+              debug env $ "about to type " ++ show identifier
               (outRes, errRes) <- runLine env $ ":t " <> identifier
+              debug env $ "finished typing:" <> T.unlines outRes
               when (T.take 1 identifier == "_" && not showHoleFits)
                 $ void $ runLine env ":set -fshow-valid-hole-fits"
               debug env $ "type req stdout: " <> stripAnsi (T.unlines outRes)
               debug env $ "type req stderr: " <> stripAnsi (T.unlines errRes)
-              let response = if checkForError outRes errRes
-                                then ExecResponse False (T.strip $ T.unlines $ dropBlankLines errRes)
-                                else ExecResponse True (T.strip $ T.unlines $ dropBlankLines outRes)
+              let prepare = T.strip . T.unlines . dropBlankLines
+                  response = if checkForError outRes errRes
+                                then ExecCaptureResponse False (prepare errRes)
+                                else ExecCaptureResponse True (prepare outRes)
 
               sendResponse env requestSock response
 
@@ -174,18 +175,18 @@ runApp = do
               result <- try $ findDocForIdentifier env identifier
               let response = 
                     case result of
-                      Right path -> ExecResponse True $ pack path
+                      Right path -> ExecCaptureResponse True $ pack path
                       Left (ex :: DocException) ->
-                        ExecResponse False $ showDocException ex
+                        ExecCaptureResponse False $ showDocException ex
               sendResponse env requestSock response
 
             RequestOpenSource identifier -> do
               result <- try $ findDocSourceForIdentifier env identifier
               let response = 
                     case result of
-                      Right path -> ExecResponse True $ pack path
+                      Right path -> ExecCaptureResponse True $ pack path
                       Left (ex :: DocException) ->
-                        ExecResponse False $ showDocException ex
+                        ExecCaptureResponse False $ showDocException ex
               sendResponse env requestSock response
 
 sendResponse :: Sender a => Env -> Socket a -> PtgResponse -> IO ()
@@ -212,9 +213,9 @@ runLine env cmd = do
 runMultiline :: Env -> Text -> IO ([Text], [Text])
 runMultiline env cmd = runLine env (":{\n"<>cmd<>"\n:}\n")
 
-runMultilineStream :: Env -> Sockets -> Text -> IO ()
-runMultilineStream env Sockets{..} cmd
-  = execStream (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n")
+runMultilineStream :: Env -> Sockets -> Text -> IO Int
+runMultilineStream env Sockets{..} cmd =
+  execStream (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n")
 
 checkForError :: [Text]-> [Text] -> Bool
 checkForError stdout stderr = isBlank stdout && not (isBlank stderr)
