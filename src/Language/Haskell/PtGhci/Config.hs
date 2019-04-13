@@ -17,8 +17,9 @@ instance FromJSON Verbosity
 data Config = Config
   { _verbosity :: Maybe Verbosity
   , _logFile :: Maybe FilePath
-  , _webBrowser :: Maybe Text }
-  deriving (Show, Generic)
+  , _webBrowser :: Maybe Text
+  , _ghciCommand :: Maybe Text
+  } deriving (Show, Generic)
 makeLenses ''Config
 
 instance FromJSON Config where
@@ -30,7 +31,7 @@ dropOneAndParse = genericParseJSON opts
   where
     opts = defaultOptions {A.fieldLabelModifier = drop 1}
 
-defaultConfig = Config (Just Debug) (Just "log.txt") Nothing
+defaultConfig = Config (Just Debug) (Just "log.txt") Nothing Nothing
 
 loadConfig :: FilePath -> IO Config
 loadConfig path = do

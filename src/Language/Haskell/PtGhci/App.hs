@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell, QuasiQuotes, LambdaCase #-}
 
 module Language.Haskell.PtGhci.App where
 
@@ -8,10 +8,6 @@ import Control.Monad
 import Control.Exception (finally, bracket, catch, SomeException, try,
                           displayException, AsyncException(..), throw, uninterruptibleMask_)
 import Text.Printf
-import Language.Haskell.Exts.Parser (parseStmt, parseDecl, parseModule,
-                                     ParseResult(..)) 
-import Language.Haskell.Exts.Pretty (prettyPrintStyleMode, style, defaultMode,
-                                     PPLayout(..), PPHsMode(..))
 import GHC.Base as Base 
 import Data.IORef
 import Data.Maybe
@@ -28,6 +24,7 @@ import Data.List ((!!), isInfixOf)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import System.Posix.Process (joinProcessGroup)
+import System.Directory (findExecutable)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString as BS
 import Text.Regex.PCRE.Heavy
@@ -100,7 +97,13 @@ runApp = do
             send (stdoutSock sockets) [] $ toS (stripInternalGhcid $ toS val)
           Stderr -> send (stderrSock sockets) [] $ toS (stripInternalGhcid $ toS val)
 
-  bracket (startGhci "stack ghci" Nothing sendOutput)
+  ghciCommand <- case _ghciCommand config of
+                   Just cmd -> return $ unpack cmd
+                   Nothing -> findExecutable "stack" >>= \case
+                       Nothing -> return "ghci"
+                       Just _ -> return "stack ghci"
+
+  bracket (startGhci ghciCommand Nothing sendOutput)
           (stop . fst)
           $ \(ghci, loadMsgs) -> do
             env <- mkEnv config ghci
@@ -113,7 +116,7 @@ runApp = do
             -- exec ghci ":set -fno-it"
             execCapture ghci ":set prompt-cont \"\""
             -- exec ghci ":set +m"
-            withAsync (awaitInterrupt (controlSock sockets) ghci) 
+            withAsync (awaitInterrupt env (controlSock sockets) ghci) 
              $ \intThread -> forever $ loop env sockets loadMsgs
 
   where
@@ -135,7 +138,9 @@ runApp = do
                           (outRes, errRes) <- wait a2
                           let response = if checkForError outRes errRes
                                             then ExecCaptureResponse False (T.unlines errRes)
-                                            else ExecCaptureResponse True (T.unlines outRes)
+                                            -- Inlcude errRes b/c sometimes there are both errors
+                                            -- and output
+                                            else ExecCaptureResponse True (T.unlines (outRes ++ errRes))
                           sendResponse env requestSock response
 
             -- Don't capture result, just echo over the stdout/stderr sockets
@@ -169,6 +174,10 @@ runApp = do
                                 then ExecCaptureResponse False (prepare errRes)
                                 else ExecCaptureResponse True (prepare outRes)
 
+              sendResponse env requestSock response
+
+            RequestCompletion lineBeforeCursor -> do
+              response <- runCompletion env lineBeforeCursor
               sendResponse env requestSock response
 
             RequestOpenDoc identifier -> do
@@ -217,6 +226,38 @@ runMultilineStream :: Env -> Sockets -> Text -> IO Int
 runMultilineStream env Sockets{..} cmd =
   execStream (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n")
 
+runCompletion :: Env -> Text -> IO PtgResponse
+runCompletion env lineBeforeCursor = do
+  (outRes, errRes) <- runLine env $ ":complete repl " <> escaped
+  if checkForError outRes errRes
+     then return $ CompletionResponse False "" []
+     else case parseCompletionResult outRes of
+            Just (startChars, candidates) ->
+              return $ CompletionResponse True startChars candidates
+            Nothing -> return $ CompletionResponse False "" []
+  where
+    escaped = show lineBeforeCursor :: Text
+
+-- | Parse the result of ":complete repl" into a string that goes before each
+-- completion candidate, and the completion candidates themselves
+parseCompletionResult :: [Text] -> Maybe (Text, [Text])
+parseCompletionResult lines = do
+  firstLine <- headMay lines'
+  match <- headMay $ scan metaRe firstLine
+  startChars <- extractStartChars match
+  candidates <- tail lines' >>= traverse unescape 
+  return (startChars, candidates)
+
+
+  where
+    lines' = dropBlankLines lines
+    metaRe = [re|(\d+) (\d+) (.*)$|]
+    extractStartChars (_, [_,_,s]) = unescape s
+    extractStartChars _ = Nothing
+    unescape :: Text -> Maybe Text
+    unescape s = fst <$> headMay (reads $ unpack s)
+
+
 checkForError :: [Text]-> [Text] -> Bool
 checkForError stdout stderr = isBlank stdout && not (isBlank stderr)
 --   where
@@ -226,7 +267,7 @@ checkForError stdout stderr = isBlank stdout && not (isBlank stderr)
 isBlank :: [Text] -> Bool
 isBlank = T.null . T.strip . T.unlines
 
--- Ahhhhhhhhhh!!  This comes from https://github.com/chalk/ansi-regex
+-- Monster regex attack!!  This comes from https://github.com/chalk/ansi-regex
 ansiRe :: Regex
 ansiRe = [re|[\e\x9B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[a-zA-Z\d]*)*)?\x07)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-ntqry=><~]))|]
 
@@ -237,16 +278,15 @@ dropBlankLines :: [Text] -> [Text]
 dropBlankLines = filter ((not . T.null) . T.strip)
 
 -- | Remove leading lines like "it :: ()".  This happens when +t is on because
--- of the inner workings of ghcid.
+-- of the inner workings of ptghci.
 eatIt :: [Text] -> [Text]
-eatIt = dropWhile (== "it :: ()") 
+eatIt = dropWhile (== "it :: ()")
 
 
-
-awaitInterrupt :: Receiver a => Socket a -> Ghci -> IO ()
-awaitInterrupt sock ghci = forever $ do
+awaitInterrupt :: Receiver a => Env -> Socket a -> Ghci -> IO ()
+awaitInterrupt env sock ghci = forever $ do
   request <- receive sock
-  putText "Handling interrupt"
+  info env ("Handling interrupt" :: Text)
   let reqStr = unpack $ decodeUtf8 request
   when (reqStr == "Interrupt") (interrupt ghci)
 

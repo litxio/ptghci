@@ -60,7 +60,7 @@ dependencies:
 - async
 - thread-hierarchy
 - zeromq4-haskell
-- haskell-src-exts
+#  - haskell-src-exts
 - cmdargs
 - unix
 - process

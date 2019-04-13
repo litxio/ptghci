@@ -11,6 +11,7 @@ import Data.Text
 data PtgRequest = RequestExecCapture { content :: Text }
                   | RequestExecStream { content :: Text }
                   | RequestType { identifier :: Text, showHoleFits :: Bool }
+                  | RequestCompletion { lineBeforeCursor :: Text }
                   | RequestLoadMessages
                   | RequestOpenDoc { identifier :: Text }
                   | RequestOpenSource { identifier :: Text }

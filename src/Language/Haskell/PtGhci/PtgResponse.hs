@@ -19,6 +19,10 @@ data PtgResponse = ExecCaptureResponse
                    | LoadMessagesResponse
                       { success :: Bool
                       , messages :: [Load] }
+                   | CompletionResponse
+                      { success :: Bool
+                      , startChars :: Text
+                      , candidates :: [Text] }
   deriving (Show, Generic)
 
 instance ToJSON PtgResponse
