@@ -1,26 +1,22 @@
-{-# LANGUAGE DeriveDataTypeable, NoOverloadedLists, LambdaCase #-}
-
 module Language.Haskell.PtGhci.Ghci (
   module Language.Haskell.PtGhci.Ghci,
   Stream(..) 
   ) where
 
--- | Much of the code in this module is taken verbatim from Neil Mitchell's
--- awesome ghcid project.  The parts that look like an ungodly mess are mine.
+-- | This module consists of logic that relates to communicating with the GHCi
+-- process.  Portions of the code in this module are taken verbatim from Neil
+-- Mitchell's fabulous ghcid project.  The parts that are messy and/or buggy
+-- are mine.
 
 import Language.Haskell.PtGhci.Prelude hiding (traceIO, appendFile)
-import Debug.Trace (trace, traceIO)
+import Debug.Trace (traceIO)
 import System.Process
-import Prelude (fail)
 import Data.Unique
-import Data.Data
 import System.IO hiding (hPutStrLn, putStr, putStrLn, print, hGetLine)
 import System.IO.Error
 import System.IO.Extra hiding (hPutStrLn, putStr, putStrLn, print, appendFile, hGetLine)
 import Control.Concurrent.Extra
-import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import GHC.Conc (unsafeIOToSTM)
 import System.Time.Extra
 import Control.Exception.Extra hiding (throwIO)
 import Data.List.Extra hiding (map, head)
@@ -72,6 +68,11 @@ startGhciProcess process echo0 = do
         hSetBuffering out LineBuffering
         hSetBuffering err LineBuffering
         hSetBuffering inp LineBuffering
+
+        whenLoud $ do pid <- getPid ghciProcess
+                      appendLine logFileH $ "GHCi process is " ++ show pid
+        
+
         let writeInp x = do
                 whenLoud $ appendLine logFileH $ "%STDIN: " ++ x
                 hPutStrLn inp x
@@ -155,9 +156,8 @@ startGhciProcess process echo0 = do
                           ++ mkSignal seq ++ "\""
 
         let ghciExec :: String -> IO Int  -- Return the signal value
-            ghciExec command = do
+            ghciExec command =
               withLock isRunning $ do
-                  -- Ensure prompt flags are clear
                   seq <- atomically $ do
                     s <- readTVar nextSeq
                     awaitSignal Stdout (s-1) -- Make sure we're caught up
@@ -170,40 +170,29 @@ startGhciProcess process echo0 = do
                   -- writeInp "let it = ___ptghci_it"
                   -- traceIO "Waiting for prompt..."
                   atomically $ modifyTVar nextSeq (+1)
-                  return $ seq
+                  return seq
 
 
         let ghciExecCapture :: String -> IO ([String], [String])  -- Return the signal value
             ghciExecCapture command =
               -- withLock isInterrupting $ return ()
               withLock isRunning $ do
-                  -- Ensure prompt flags are clear
                   seq <- atomically $ do
                     s <- readTVar nextSeq
-                    -- unsafeIOToSTM $ appendLine logFileH $ "Wait for stdout (-1)"
                     awaitSignal Stdout (s-1) -- Make sure we're caught up
-                    -- unsafeIOToSTM $ appendLine logFileH $ "Wait for stderr (-1)"
-                    -- readTVar (lastSeqSeen Stderr)
-                    --  >>= unsafeIOToSTM . (appendLine logFileH . ("  cur sig val: "++) . show)
                     awaitSignal Stderr (s-1) -- Make sure we're caught up
                     putTMVar ghciCapturingSeq s
                     return s
 
                   writeInp command
-                  -- writeInp "let that = it"
+                  -- writeInp "let ___ptghci_it = it"
                   sendSignals seq
                   -- writeInp "let it = ___ptghci_it"
-                  -- appendLine logFileH $ "Waiting for prompt..."
                   atomically $ do
-                    --unsafeIOToSTM $ appendLine logFileH $ "Wait for stdout: " ++ show seq
                     awaitSignal Stdout seq
-                    --unsafeIOToSTM $ appendLine logFileH $ "Wait for stderr: " ++ show seq
                     awaitSignal Stderr seq
-                    --unsafeIOToSTM $ appendLine logFileH $ "Barrier 1"
                     tryTakeTMVar ghciCapturingSeq
-                    --unsafeIOToSTM $ appendLine logFileH $ "Barrier 2"
                     out <- takeTMVar ghciCapturedOut
-                    --unsafeIOToSTM $ appendLine logFileH $ "Barrier 3"
                     err <- takeTMVar ghciCapturedErr
                     modifyTVar nextSeq (+1)
                     return (dropLeadingBlank out, dropLeadingBlank err)
@@ -213,7 +202,7 @@ startGhciProcess process echo0 = do
 
 
         let ghciInterrupt = do
-              appendLine logFileH "Interrupting GHCi"
+              whenLoud $ appendLine logFileH "Interrupting GHCi"
               interruptProcessGroupOf ghciProcess
 
         -- sendSignals results in a lot of "it :: ()" being printed out, when
@@ -222,7 +211,7 @@ startGhciProcess process echo0 = do
         -- technically should want to see the "it :: ()".
         let keep line = line /= prompt && line /= "it :: ()"
 
-        let watchStream stream = forever $ handle (\(e :: SomeException) -> print e) $ do
+        let watchStream stream = do
               captureBuffer <- newIORef []
               forever $ do
                 let h           = if stream == Stdout then out else err
@@ -231,13 +220,13 @@ startGhciProcess process echo0 = do
                 el <- tryBool isEOFError $ T.unpack . decodeUtf8 <$> BS.hGetLine h
                 case el of
                   Left e -> do
-                    echo0 stream $ "Got EOF on " ++ show stream
+                    whenLoud $ appendLine logFileH $ "Got EOF on " ++ show stream
                     when (stream == Stdout) $ do
                       mec <- getProcessExitCode ghciProcess
                       case mec of
-                        Nothing -> echo0 stream "GHCi process still alive!"
-                        Just ec -> echo0 stream $ "GHCi died with code " ++ show ec
-                      die "Exiting..."
+                        Nothing -> echo0 stream "After EOF, GHCi process still alive!"
+                        Just ec -> return ()-- echo0 stream $ "GHCi died with code " ++ show ec
+                    throwIO e
 
                   Right val' -> do
                     whenLoud (appendLine logFileH $ show stream ++ ": " ++ show val') 
@@ -263,11 +252,11 @@ startGhciProcess process echo0 = do
 
                         case mbSig of
                           Just finishingSeq -> do
-                            appendLine logFileH $ "Finishing " ++ show finishingSeq ++ " -- " ++ show stream
+                            whenLoud $ appendLine logFileH $ "Finishing " ++ show finishingSeq ++ " -- " ++ show stream
                             atomically $ writeTVar (lastSeqSeen stream) finishingSeq
                             capRes <- readIORef captureBuffer
                             when capture $ do
-                              finishCapture <- if finishingSeq >= fromJust (mbCapSeq)
+                              finishCapture <- if finishingSeq >= fromJust mbCapSeq
                                                   then atomically $ do
                                                     putTMVar captureDest (reverse capRes)
                                                     return True
@@ -296,7 +285,7 @@ startGhciProcess process echo0 = do
                     writeIORef stdout []
                     writeIORef stderr []
                     writeInp "import qualified System.IO as INTERNAL_GHCID"
-                    writeInp ":unset +t +s" 
+                    writeInp ":unset +s" 
                     -- Put a newline after the prompt, because we are using line buffering
                     writeInp $ ":set prompt " ++ "\"" ++ prompt ++ "\\n\""
 
@@ -325,10 +314,6 @@ startGhci cmd directory = startGhciProcess (shell cmd){cwd=directory}
 execCapture :: Ghci -> String -> IO ([String], [String])
 execCapture = ghciExecCapture
 
--- | List the modules currently loaded, with module name and source file.
--- showModules :: Ghci -> IO [(String,FilePath)]
--- showModules ghci = parseShowModules <$> exec ghci ":show modules"
-
 -- | Execute a command, echoing results over streams
 execStream :: Ghci -> String -> IO Int
 execStream = ghciExec
@@ -339,15 +324,11 @@ interrupt :: Ghci -> IO ()
 interrupt = ghciInterrupt
 
 
--- | Stop GHCi. Attempts to interrupt and execute @:quit:@, but if that doesn't complete
---   within 5 seconds it just terminates the process.
+-- | Stop GHCi. Attempts to interrupt and execute @:quit:@, but if that doesn't
+-- complete within 20 milliseconds it just terminates the process.
 stopGhci :: Ghci -> IO ()
-stopGhci ghci = do
-    forkIO $ do
-        -- if nicely doesn't work, kill ghci as the process level
-        sleep 5
-        terminateProcess $ process ghci
-    quit ghci
+stopGhci ghci = race_ (quit ghci)
+                      (sleep 0.02 >> terminateProcess (process ghci))
 
 -- | List the modules currently loaded, with module name and source file.
 showModules :: Ghci -> IO [(String,FilePath)]
@@ -364,11 +345,11 @@ reload ghci = parseLoad . fst <$> execCapture ghci ":reload"
 -- | Send @:quit@ and wait for the process to quit.
 quit :: Ghci -> IO ()
 quit ghci =  do
-    interrupt ghci
-    handle (\UnexpectedExit{} -> return ()) $ void $ execCapture ghci ":quit"
-    -- Be aware that waitForProcess has a race condition, see https://github.com/haskell/process/issues/46.
-    -- Therefore just ignore the exception anyway, its probably already terminated.
-    ignored $ void $ waitForProcess $ process ghci
+  interrupt ghci
+  handle (\UnexpectedExit{} -> return ()) $ void $ execStream ghci ":quit"
+  -- Be aware that waitForProcess has a race condition, see https://github.com/haskell/process/issues/46.
+  -- Therefore just ignore the exception anyway, its probably already terminated.
+  void $ waitForProcess $ process ghci
 
 
 -- | Obtain the progress handle behind a GHCi instance.

@@ -1,3 +1,3 @@
-# Changelog for ptghci-engine
+# Changelog for ptghci
 
 ## Unreleased changes

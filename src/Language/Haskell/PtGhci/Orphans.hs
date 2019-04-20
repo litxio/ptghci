@@ -3,7 +3,7 @@ module Language.Haskell.PtGhci.Orphans where
 
 import Language.Haskell.PtGhci.Prelude
 
-import Language.Haskell.Ghcid
+import Language.Haskell.Ghcid.Types
 import Data.Aeson
 import GHC.Generics
 

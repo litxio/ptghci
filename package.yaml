@@ -1,25 +1,20 @@
-name:                ptghci-engine
+name:                ptghci
 version:             0.1.0.0
-github:              "githubuser/ptghci-engine"
+github:              "litxio/ptghci"
 license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2019 Author name here"
+author:              "Richard Warfield"
+maintainer:          "richard@litx.io"
+copyright:           "2019 Richard Warfield"
 
 extra-source-files:
 - README.md
 - ChangeLog.md
 
-# data-files: pybits/**/*.py
+data-files: pybits/**/*.py
 
-# Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
-
-# To avoid duplicated efforts in documentation and dealing with the
-# complications of embedding Haddock markup inside cabal files, it is
-# common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/ptghci-engine#readme>
+synopsis:            High-powered REPL wrapper around GHCi based on prompt-toolkit
+category:            Development
+description:         Please see the README on GitHub at <https://github.com/litxio/ptghci#readme>
 
 default-extensions:
 - BangPatterns
@@ -46,44 +41,44 @@ default-extensions:
 - TypeApplications
 - StandaloneDeriving
 - NoImplicitPrelude
+- ExtendedDefaultRules
 
 dependencies:
 - base >= 4.7 && < 5
 - protolude
 - text
-- ghcid
 - containers
 - unordered-containers
 - microlens
 - bytestring
 - aeson
 - async
-- thread-hierarchy
 - zeromq4-haskell
-#  - haskell-src-exts
 - cmdargs
 - unix
 - process
 - pcre-heavy
-- unordered-containers
 - open-browser
 - filepath
 - directory
 - template-haskell
 - megaparsec
 - parser-combinators
-- formatting
 - microlens
 - microlens-th
 - yaml
 - extra
 - stm
+- time
+- ansi-terminal
+
 
 library:
   source-dirs: src
+  pkg-config-dependencies: python3
 
 executables:
-  ptghci-engine-exe:
+  ptghci:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -91,13 +86,12 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - ptghci-engine
+    - ptghci
       # c-sources: cbits/ptghci-shim.c
       # include-dirs: cbits
-      # pkg-config-dependencies: python3
 
 tests:
-  ptghci-engine-test:
+  ptghci-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
@@ -105,7 +99,7 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - ptghci-engine
+    - ptghci
     - hspec
     - QuickCheck
     - silently

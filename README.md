@@ -7,8 +7,8 @@ ptghci is an interactive command shell for Haskell designed for high-productivit
 ## Installation
 
 ```
-stack install ptghci-engine
-pip install ptghci
+pip install -r requirements.txt
+stack install
 ```
 
 ## Usage

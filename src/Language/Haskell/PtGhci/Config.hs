@@ -6,6 +6,8 @@ import Language.Haskell.PtGhci.Prelude
 import Lens.Micro.TH
 import Text.Printf
 import Data.Aeson
+import System.Directory
+import System.FilePath
 import Data.Yaml (decodeFileEither, prettyPrintParseException)
 import qualified Data.Aeson.Types    as A (Options (..), Parser)
 import Language.Haskell.PtGhci.Exception
@@ -41,3 +43,17 @@ loadConfig path = do
       (printf "Error parsing configuration file %s: %s"
              path (prettyPrintParseException ex) :: String)
     Right c -> return c
+
+findConfigLocation :: IO (Maybe FilePath)
+findConfigLocation = do
+  homeDir <- getHomeDirectory
+  p1 <- checkPath "ptghci.yaml"
+  p2 <- checkPath ".ptghci.yaml"
+  p3 <- checkPath $ homeDir </> ".ptghci.yaml"
+  return $ p1 <|> p2 <|> p3
+  where
+    checkPath :: FilePath -> IO (Maybe FilePath)
+    checkPath p = do
+      b <- doesFileExist p
+      return $ if b then Just p else Nothing
+
