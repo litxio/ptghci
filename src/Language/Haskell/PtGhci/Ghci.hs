@@ -195,10 +195,13 @@ startGhciProcess process echo0 = do
                     out <- takeTMVar ghciCapturedOut
                     err <- takeTMVar ghciCapturedErr
                     modifyTVar nextSeq (+1)
-                    return (dropLeadingBlank out, dropLeadingBlank err)
+                    return ( dropTrailingBlank $ dropLeadingBlank out
+                           , dropTrailingBlank $ dropLeadingBlank err)
                       where dropLeadingBlank [] = []
                             dropLeadingBlank (s:ss) = if null s then ss
                                                                 else (s:ss)
+                            dropTrailingBlank ("":[]) = []
+                            dropTrailingBlank (s:ss) = s:dropTrailingBlank ss
 
 
         let ghciInterrupt = do
@@ -221,11 +224,11 @@ startGhciProcess process echo0 = do
                 case el of
                   Left e -> do
                     whenLoud $ appendLine logFileH $ "Got EOF on " ++ show stream
-                    when (stream == Stdout) $ do
-                      mec <- getProcessExitCode ghciProcess
-                      case mec of
-                        Nothing -> echo0 stream "After EOF, GHCi process still alive!"
-                        Just ec -> return ()-- echo0 stream $ "GHCi died with code " ++ show ec
+                    -- when (stream == Stdout) $ do
+                    --   mec <- getProcessExitCode ghciProcess
+                    --   case mec of
+                    --     Nothing -> echo0 stream "After EOF, GHCi process still alive!"
+                    --     Just ec -> echo0 stream $ "GHCi died with code " ++ show ec
                     throwIO e
 
                   Right val' -> do
@@ -243,8 +246,6 @@ startGhciProcess process echo0 = do
                                       Just capSeq -> capSeq == lastSeq + 1
                           dupSig = ((<= lastSeq) <$> mbSig) == Just True && null val
 
-                      -- when capture $ traceIO $ "Capturing for " ++ show mbCapSeq
-
                       unless dupSig $ do
                         if capture then modifyIORef captureBuffer (val:)
                                    -- DO send the signal, provided it's not a duplicate
@@ -252,7 +253,8 @@ startGhciProcess process echo0 = do
 
                         case mbSig of
                           Just finishingSeq -> do
-                            whenLoud $ appendLine logFileH $ "Finishing " ++ show finishingSeq ++ " -- " ++ show stream
+                            whenLoud $ appendLine logFileH $
+                              "Finishing " ++ show finishingSeq ++ " -- " ++ show stream
                             atomically $ writeTVar (lastSeqSeen stream) finishingSeq
                             capRes <- readIORef captureBuffer
                             when capture $ do
@@ -282,8 +284,8 @@ startGhciProcess process echo0 = do
                 modifyIORef (if strm == Stdout then stdout else stderr) (s:)
                 when (any (`isPrefixOf` s) ["GHCi, version ","GHCJSi, version "]) $ do
                     -- the thing before me may have done its own Haskell compiling
-                    writeIORef stdout []
-                    writeIORef stderr []
+                    writeIORef stdout [s]
+                    writeIORef stderr [s]
                     writeInp "import qualified System.IO as INTERNAL_GHCID"
                     writeInp ":unset +s" 
                     -- Put a newline after the prompt, because we are using line buffering
