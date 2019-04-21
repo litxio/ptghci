@@ -146,6 +146,7 @@ class Session():
         word = self.buffer.document.get_word_under_cursor(WORD=True)
         if word and word != self.last_cursor_word:
             self.threadpool.apply(self.bottom_toolbar_async)
+            self.last_cursor_word = word
         elif not word:
             self.bottom_text = None
 
