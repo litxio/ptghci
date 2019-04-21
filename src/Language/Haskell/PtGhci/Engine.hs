@@ -1,4 +1,4 @@
-{-# LANGUAGE QuasiQuotes, LambdaCase #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Language.Haskell.PtGhci.Engine where
 

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 24272cc1ba94395c944a9a068fc68e9960b4684638ff2f482d2751b9fc61d119
+-- hash: ac73f3fd2e816529844ee5b097835f9070a265f0c90f605e2b5ea99cc8a75214
 
 name:           ptghci
 version:        0.1.0.0
@@ -77,7 +77,7 @@ library
       Paths_ptghci
   hs-source-dirs:
       src
-  default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules
+  default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules LambdaCase
   pkgconfig-depends:
       python3
   build-depends:
@@ -114,7 +114,7 @@ executable ptghci
       Paths_ptghci
   hs-source-dirs:
       app
-  default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules
+  default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
@@ -153,7 +153,7 @@ test-suite ptghci-test
       Paths_ptghci
   hs-source-dirs:
       test
-  default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules
+  default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck

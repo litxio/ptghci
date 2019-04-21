@@ -63,9 +63,17 @@ startGhciProcess process echo0 = do
                       , std_err=CreatePipe, create_group=True}
     withCreateProc proc $ \(Just inp) (Just out) (Just err) ghciProcess -> do
 
-        logFileH <- openFile streamLogFile AppendMode
-        let streamLog = whenLoud . appendLine logFileH
-        hSetBuffering logFileH LineBuffering
+        logFileHRef <- newIORef Nothing
+
+        let streamLog msg = whenLoud $ do
+              logFileH <- readIORef logFileHRef >>= \case
+                Nothing -> do
+                  h <- openFile streamLogFile AppendMode
+                  hSetBuffering h LineBuffering
+                  writeIORef logFileHRef $ Just h
+                  return h
+                Just h -> return h
+              appendLine logFileH msg
 
         hSetBuffering out LineBuffering
         hSetBuffering err LineBuffering
