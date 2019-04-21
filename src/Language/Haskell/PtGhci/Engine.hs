@@ -103,7 +103,7 @@ runApp sockets = do
                           (waitForProcess (process ghci) >> debug env "GHCi finished, exiting")
   return (thread, stopGhci (_ghci env))
   where
-    loop env sockets@Sockets{..} loadMsgs = do
+    loop env sockets@Sockets{..} loadMsgs = handle (handleExc $ _ghci env) $ do
       request <- receive requestSock
       let req = decode (BSL.fromStrict request) :: Maybe PtgRequest
       debug env ("Got request " <> show req :: Text)
@@ -181,6 +181,11 @@ runApp sockets = do
                         ExecCaptureResponse False $ showDocException ex
               sendResponse env requestSock response
       loop env sockets loadMsgs
+
+    handleExc ghci (e :: SomeException) = do
+      putErrText $ show e
+      stop ghci
+
 
 sendResponse :: Sender a => Env -> Socket a -> PtgResponse -> IO ()
 sendResponse env sock msg = do

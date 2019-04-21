@@ -8,9 +8,9 @@ from ptghci.settings import Settings
 def engine(scope='session'):
 
     from ptghci.engine import Engine
-    # settings = Settings.default_settings()
+    settings = Settings.default_settings()
     # settings.verbosity = "Trace"
-    settings = Settings.from_settings_file("ptghci.yaml")
+    # settings = Settings.from_settings_file("ptghci.yaml")
     ngin = Engine.oop_engine(settings)
     yield ngin
     ngin.finish()

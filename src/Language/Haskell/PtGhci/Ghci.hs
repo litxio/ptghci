@@ -18,6 +18,7 @@ import System.IO.Extra hiding (hPutStrLn, putStr, putStrLn, print, appendFile, h
 import Control.Concurrent.Extra
 import Control.Concurrent.STM
 import System.Time.Extra
+import GHC.Conc (unsafeIOToSTM)
 import Control.Exception.Extra hiding (throwIO)
 import Data.List.Extra hiding (map, head)
 import Data.Maybe
@@ -63,6 +64,7 @@ startGhciProcess process echo0 = do
     withCreateProc proc $ \(Just inp) (Just out) (Just err) ghciProcess -> do
 
         logFileH <- openFile streamLogFile AppendMode
+        let streamLog = whenLoud . appendLine logFileH
         hSetBuffering logFileH LineBuffering
 
         hSetBuffering out LineBuffering
@@ -70,11 +72,11 @@ startGhciProcess process echo0 = do
         hSetBuffering inp LineBuffering
 
         whenLoud $ do pid <- getPid ghciProcess
-                      appendLine logFileH $ "GHCi process is " ++ show pid
+                      streamLog $ "GHCi process is " ++ show pid
         
 
         let writeInp x = do
-                whenLoud $ appendLine logFileH $ "%STDIN: " ++ x
+                streamLog $ "%STDIN: " ++ x
                 hPutStrLn inp x
             prompt = "%~#IGNORE#-%"
 
@@ -112,7 +114,7 @@ startGhciProcess process echo0 = do
                         Left err -> print err >>
                                       return Nothing
                         Right l -> do
-                            -- whenLoud $ appendLine logFileH $ "%" ++ upper (show name) ++ ": " ++ l
+                            -- streamLog $ "%" ++ upper (show name) ++ ": " ++ l
                             res <- finish $ removePrefix l
                             case res of
                                 Nothing -> rec
@@ -201,11 +203,12 @@ startGhciProcess process echo0 = do
                             dropLeadingBlank (s:ss) = if null s then ss
                                                                 else (s:ss)
                             dropTrailingBlank ("":[]) = []
+                            dropTrailingBlank [] = []
                             dropTrailingBlank (s:ss) = s:dropTrailingBlank ss
 
 
         let ghciInterrupt = do
-              whenLoud $ appendLine logFileH "Interrupting GHCi"
+              streamLog "Interrupting GHCi"
               interruptProcessGroupOf ghciProcess
 
         -- sendSignals results in a lot of "it :: ()" being printed out, when
@@ -223,7 +226,7 @@ startGhciProcess process echo0 = do
                 el <- tryBool isEOFError $ T.unpack . decodeUtf8 <$> BS.hGetLine h
                 case el of
                   Left e -> do
-                    whenLoud $ appendLine logFileH $ "Got EOF on " ++ show stream
+                    streamLog $ "Got EOF on " ++ show stream
                     -- when (stream == Stdout) $ do
                     --   mec <- getProcessExitCode ghciProcess
                     --   case mec of
@@ -232,7 +235,7 @@ startGhciProcess process echo0 = do
                     throwIO e
 
                   Right val' -> do
-                    whenLoud (appendLine logFileH $ show stream ++ ": " ++ show val') 
+                    streamLog $ show stream ++ ": " ++ show val'
                     when (keep val') $ do
                       -- traceIO $ "Read line " ++ val' ++ " -- " ++ show stream
                       let (val, mbSig) = stripSignal val'
@@ -253,15 +256,15 @@ startGhciProcess process echo0 = do
 
                         case mbSig of
                           Just finishingSeq -> do
-                            whenLoud $ appendLine logFileH $
+                            streamLog $
                               "Finishing " ++ show finishingSeq ++ " -- " ++ show stream
                             atomically $ writeTVar (lastSeqSeen stream) finishingSeq
                             capRes <- readIORef captureBuffer
                             when capture $ do
                               finishCapture <- if finishingSeq >= fromJust mbCapSeq
                                                   then atomically $ do
-                                                    putTMVar captureDest (reverse capRes)
-                                                    return True
+                                                      putTMVar captureDest (reverse capRes)
+                                                      return True
                                                   else return False
 
                               when finishCapture $ writeIORef captureBuffer []
@@ -280,7 +283,7 @@ startGhciProcess process echo0 = do
             else do
                 -- there may be some initial prompts on stdout before I set the prompt properly
                 s <- return $ maybe s (removePrefix . snd) $ stripInfix ghcid_prefix s
-                whenLoud $ appendLine logFileH $ "%STDOUT2: " ++ s
+                streamLog $ "%STDOUT2: " ++ s
                 modifyIORef (if strm == Stdout then stdout else stderr) (s:)
                 when (any (`isPrefixOf` s) ["GHCi, version ","GHCJSi, version "]) $ do
                     -- the thing before me may have done its own Haskell compiling

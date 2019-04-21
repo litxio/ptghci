@@ -130,8 +130,6 @@ class Engine():
 
         # Start the engine
         args = [engine_bin]
-        if config.settings_path:
-            args.append(config.settings_path)
 
         env = os.environ
         env['PTGHCI_ENGINE_MODE'] = '1'
