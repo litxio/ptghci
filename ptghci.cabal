@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9a0bf4b21bf39ad226792d98e51b14b6c67fbbe7878f52e271595a2e1d4cc3a6
+-- hash: 24272cc1ba94395c944a9a068fc68e9960b4684638ff2f482d2751b9fc61d119
 
 name:           ptghci
 version:        0.1.0.0
@@ -103,7 +103,6 @@ library
     , template-haskell
     , text
     , time
-    , unix
     , unordered-containers
     , yaml
     , zeromq4-haskell
@@ -141,7 +140,6 @@ executable ptghci
     , template-haskell
     , text
     , time
-    , unix
     , unordered-containers
     , yaml
     , zeromq4-haskell
@@ -184,7 +182,6 @@ test-suite ptghci-test
     , template-haskell
     , text
     , time
-    , unix
     , unordered-containers
     , yaml
     , zeromq4-haskell

@@ -55,7 +55,7 @@ dependencies:
 - async
 - zeromq4-haskell
 - cmdargs
-- unix
+  # - unix
 - process
 - pcre-heavy
 - open-browser

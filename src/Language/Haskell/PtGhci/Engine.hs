@@ -21,7 +21,7 @@ import Language.Haskell.PtGhci.Ghci-- hiding (Error)
 import Data.Text (Text, pack, unpack)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
-import System.Posix.Process (joinProcessGroup)
+-- import System.Posix.Process (joinProcessGroup)
 import System.Process
 import System.Directory (findExecutable)
 import qualified Data.ByteString.Lazy as BSL
@@ -74,7 +74,7 @@ runApp sockets = do
 
   -- This keeps interrupt signal from the parent (python) process from messing
   -- up our executions. TODO this won't work on Windows -- do I need it?
-  joinProcessGroup 0
+  -- joinProcessGroup 0
 
   promptFlag <- newEmptyMVar :: IO (MVar ())
   let sendOutput stream val =

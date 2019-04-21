@@ -8,7 +8,6 @@ import Foreign.C.String
 import Foreign.Ptr
 import Foreign.Storable
 import System.Environment
-import System.Posix.Signals
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import Data.String
