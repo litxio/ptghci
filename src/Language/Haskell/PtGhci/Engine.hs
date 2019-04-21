@@ -183,7 +183,7 @@ runApp sockets = do
       loop env sockets loadMsgs
 
     handleExc ghci (e :: SomeException) = do
-      putErrText $ show e
+      -- putErrText $ show e
       stop ghci
 
 

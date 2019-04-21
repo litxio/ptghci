@@ -157,8 +157,23 @@ startGhciProcess process echo0 = do
               writeInp $ "INTERNAL_GHCID.hPutStrLn INTERNAL_GHCID.stderr \"\\n"
                           ++ mkSignal seq ++ "\""
 
+            -- | write the entry to GHCi and send the signal
+        let submitInput :: String -> Int -> IO ()
+            submitInput entry seq = do
+                  if isGhciCommand entry
+                     then streamLog $ entry ++ " looks like a command"
+                     else streamLog $ entry ++ " doesn't look like a command"
+                  writeInp entry
+                  unless (isGhciCommand entry) $ writeInp "let that = it"
+                  -- Make sure INTERNAL_GHCID doens't go out of scope when the
+                  -- user types :module or :load
+                  when (resetsModules entry) $
+                    writeInp "import qualified System.IO as INTERNAL_GHCID"
+                  sendSignals seq
+                  -- unless (isGhciCommand entry) $ writeInp "let it = __ptghci_it"
+
         let ghciExec :: String -> IO Int  -- Return the signal value
-            ghciExec command =
+            ghciExec entry =
               withLock isRunning $ do
                   seq <- atomically $ do
                     s <- readTVar nextSeq
@@ -166,17 +181,13 @@ startGhciProcess process echo0 = do
                     awaitSignal Stderr (s-1) -- Make sure we're caught up
                     return s
                    
-                  writeInp command
-                  -- writeInp "let that = it"
-                  sendSignals seq
-                  -- writeInp "let it = ___ptghci_it"
-                  -- traceIO "Waiting for prompt..."
+                  submitInput entry seq
                   atomically $ modifyTVar nextSeq (+1)
                   return seq
 
 
         let ghciExecCapture :: String -> IO ([String], [String])  -- Return the signal value
-            ghciExecCapture command =
+            ghciExecCapture entry =
               -- withLock isInterrupting $ return ()
               withLock isRunning $ do
                   seq <- atomically $ do
@@ -186,10 +197,7 @@ startGhciProcess process echo0 = do
                     putTMVar ghciCapturingSeq s
                     return s
 
-                  writeInp command
-                  -- writeInp "let ___ptghci_it = it"
-                  sendSignals seq
-                  -- writeInp "let it = ___ptghci_it"
+                  submitInput entry seq
                   atomically $ do
                     awaitSignal Stdout seq
                     awaitSignal Stderr seq
@@ -201,8 +209,8 @@ startGhciProcess process echo0 = do
                            , dropTrailingBlank $ dropLeadingBlank err)
                       where dropLeadingBlank [] = []
                             dropLeadingBlank (s:ss) = if null s then ss
-                                                                else (s:ss)
-                            dropTrailingBlank ("":[]) = []
+                                                                else s:ss
+                            dropTrailingBlank [""] = []
                             dropTrailingBlank [] = []
                             dropTrailingBlank (s:ss) = s:dropTrailingBlank ss
 
@@ -375,3 +383,11 @@ stripSignal s
   | [(sig, rest)] <- reads (drop (length signalPrefix) s)
   , rest `startsWith` signalSuffix = (drop (length signalSuffix) rest, Just sig)
 startsWith s pre = take (length pre) s == pre
+
+resetsModules entry =
+  ":loa" `isPrefixOf` (dropColonBracket entry) 
+  || ":mo" `isPrefixOf` (dropColonBracket entry)
+
+isGhciCommand entry = ":" `isPrefixOf` (dropColonBracket entry)
+
+dropColonBracket s = if ":{\n" `isPrefixOf` s then drop 3 s else s

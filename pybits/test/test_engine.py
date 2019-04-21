@@ -15,13 +15,12 @@ def test_type(engine):
     assert res.success
     assert res.content == '(1 :: Integer) :: Integer'
 
-# Currently, 'it' is not working
-# def test_it(engine):
-#     """ check that the special 'that' variable works """
-#     engine.execute("1+1")
-#     res = engine.execute("that")
-#     assert res.success
-#     assert res.content.strip() == '2'
+def test_it(engine):
+    """ check that the special 'that' variable works """
+    engine.execute("1+1")
+    res = engine.execute("that")
+    assert res.success
+    assert res.content.strip() == '2'
 
 
 # TODO
