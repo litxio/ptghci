@@ -78,6 +78,9 @@ data Load
       LoadConfig
         {loadFile :: FilePath -- ^ The file that was being loaded, @.ghci@.
         }
+    | LoadGhciVersion
+        {loadVersion :: String -- ^ The GHCI version
+        }
     deriving (Show, Eq, Ord)
 
 -- | Is a 'Load' a 'Message'?

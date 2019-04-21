@@ -252,6 +252,8 @@ class Engine():
             elif msg.get('tag') == 'LoadConfig':
                 lines.append('Loading GHCI configuration from %s'
                              % msg['loadFile'])
+            elif msg.get('tag') == 'LoadGhciVersion':
+                lines.append('ptGHCi running GHCi version ' + msg['loadVersion'])
             # elif msg.get('tag') == 'LoadUnknown':
             #     lines.append(msg['loadUnknownMessage'])
         return '\n'.join(lines)

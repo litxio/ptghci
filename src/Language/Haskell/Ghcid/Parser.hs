@@ -108,6 +108,12 @@ parseLoad (map Esc -> xs) = nubOrd $ f xs
             | Just x <- stripPrefixE "Loaded GHCi configuration from " x
             = LoadConfig (unescapeE x) : f xs
 
+        -- GHCi, version...
+        f (x:xs)
+            | Just vs <- stripPrefixE "GHCi, version " x 
+                          <|> stripPrefixE "GHCJSi, version " x
+            = LoadGhciVersion (takeWhile (/= ':') $ unescapeE vs) : f xs
+
         f (_:xs) = f xs
         f [] = []
 
