@@ -66,7 +66,6 @@ socketEndpoints Sockets{..} = (,,,) <$> lastEndpoint requestSock
 -- the main loop runs, and an IO action that will cause the loop to terminate.
 runApp :: Sockets -> IO (Async (), IO ())
 runApp sockets = do
-  args <- getArgs
   configPath <- findConfigLocation
   config <- case configPath of
                Just p -> loadConfig p
@@ -91,7 +90,8 @@ runApp sockets = do
                        Nothing -> return "ghci"
                        Just _ -> return "stack ghci"
 
-  (ghci, loadMsgs) <- startGhci ghciCommand Nothing sendOutput
+  cmdline <- unwords <$> getArgs
+  (ghci, loadMsgs) <- startGhci (ghciCommand++" "++cmdline) Nothing sendOutput
   env <- mkEnv config ghci
   -- info env $ format ("Request/control sockets: "%string%", "%string
   --                    %", "%string%", "%string)

@@ -4,9 +4,11 @@ module Language.Haskell.PtGhci.Prelude
   , module MicroLens
   , module Language.Haskell.PtGhci.Prelude 
   , String
+  , unwords
 ) where 
 
 import Protolude as P hiding ((%), to, trace)
+import Prelude (unwords)
 import Lens.Micro as MicroLens
 import qualified Protolude as P
 import qualified Data.Text as T
