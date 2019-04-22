@@ -1,0 +1,106 @@
+name:                ptghci
+version:             0.1.0.0
+github:              "litxio/ptghci"
+license:             BSD3
+author:              "Richard Warfield"
+maintainer:          "richard@litx.io"
+copyright:           "2019 Richard Warfield"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+data-files: pybits/**/*.py
+
+synopsis:            High-powered REPL wrapper around GHCi based on prompt-toolkit
+category:            Development
+description:         Please see the README on GitHub at <https://github.com/litxio/ptghci#readme>
+
+default-extensions:
+- BangPatterns
+- ScopedTypeVariables
+- MultiParamTypeClasses
+- ScopedTypeVariables
+- OverloadedStrings
+- OverloadedLists
+- KindSignatures
+- DataKinds
+- PolyKinds
+- FlexibleInstances
+- DeriveGeneric
+- RecordWildCards
+- DuplicateRecordFields
+- FlexibleContexts
+- DeriveFunctor
+- TypeOperators
+- GeneralizedNewtypeDeriving
+- TypeFamilies
+- TupleSections
+- NamedFieldPuns
+- RankNTypes
+- TypeApplications
+- StandaloneDeriving
+- NoImplicitPrelude
+- ExtendedDefaultRules
+- LambdaCase
+
+dependencies:
+- base >= 4.7 && < 5
+- protolude
+- text
+- containers
+- unordered-containers
+- microlens
+- bytestring
+- aeson
+- async
+- zeromq4-haskell
+- cmdargs
+  # - unix
+- process
+- pcre-heavy
+- open-browser
+- filepath
+- directory
+- template-haskell
+- megaparsec
+- parser-combinators
+- microlens
+- microlens-th
+- yaml
+- extra
+- stm
+- time
+- ansi-terminal
+
+
+library:
+  source-dirs: src
+  pkg-config-dependencies: python3
+
+executables:
+  ptghci:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - ptghci
+      # c-sources: cbits/ptghci-shim.c
+      # include-dirs: cbits
+
+tests:
+  ptghci-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - ptghci
+    - hspec
+    - QuickCheck
+    - silently
