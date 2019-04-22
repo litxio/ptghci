@@ -2,13 +2,13 @@
 
 ## Overview
 
-ptghci is an interactive command shell for Haskell designed for high-productivity interactive coding.  It is implemnted as a wrapper around GHCi based on Python's `prompt-toolkit` library and heavily inspired by iPython.  
+ptghci is an interactive command shell for Haskell designed for high-productivity interactive coding.  It is implemnted as a wrapper around GHCi based on Python's `prompt-toolkit` library and heavily inspired by IPython.  
 
 ## Features
 
 ### Syntax highlighting
 
-Highlighting is based on the `pygments` library, with a variety of styles available through the `%style` magic command.
+Highlighting is based on the `pygments` library, with a variety of styles available through the `%style` [magic command](#magic-commands)magic command.
 
 ![Syntax highlighting](https://litxio.github.io/ptghci/images/syntax_highlight.svg)
 
@@ -38,7 +38,7 @@ ptGHCi prompt not powerful enough for you?  Press <F2> to edit the current entry
 
 ### Show and re-run command history
 
-Use the `%past` command to list prior commands entered into the prompt during the current session, and `%rerun` to rerun past commands.  Useful for restoring bindings after a `:reload`.  
+Use the `%past` magic command to list prior commands entered into the prompt during the current session, and `%rerun` to rerun past commands.  Useful for restoring bindings after a `:reload`.  
 
 ![Command history](https://litxio.github.io/ptghci/images/history.svg)
 
@@ -55,7 +55,7 @@ stack install
 
 ## Usage and configuration
 
-Just run `ptghci` to start a session; any command line arguments will be passed to GHCi.  
+Just run `ptghci` to start a session; any command line arguments will be passed to GHCi.  The command used to start GHCi can be set via the `ghciCommand` setting in the configuration file.  By default it is `stack ghci` if `stack` is on `$PATH`, otherwise just `ghci`.
 
 ptGHCi uses a yaml configuration file, which it will look for in the following locations in order of decreasing priority:
 
@@ -65,7 +65,7 @@ ptGHCi uses a yaml configuration file, which it will look for in the following l
 
 The file `ptghci.yaml.defaults` lists the available options and their defaults.  
 
-### Magic commands
+###Magic commands
 
 Special "magic" commands understood by ptGHCi start with `%` by default:
 
