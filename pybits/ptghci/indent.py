@@ -92,7 +92,7 @@ def register_indent_trigger_bindings(keybindings):
         buf.insert_text(']')
 
 operator_re = r'[!#$%&*+./<>?@\\^|~-]+'
-continue_re = re.compile(r'.*(->|=>|::|\bin|\bwhere|\blet|\bdo|=|'
+continue_re = re.compile(r'.*(->|=>|::|\bin|\bwhere|\blet|\bdo|=|\bof|'
                          + operator_re + r')\s*$')
 def should_submit_on_enter(buf):
     """

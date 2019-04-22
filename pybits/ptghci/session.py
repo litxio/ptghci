@@ -13,7 +13,7 @@ from prompt_toolkit.styles import Style, merge_styles
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.formatted_text import ANSI
 
-from . import indent, completer
+from . import indent, completer, vimcursor
 from .highlight import hl
 
 
@@ -43,7 +43,7 @@ class Session():
 
         self._psession = PtPromptSession(
             ":", lexer=lexer,
-            vi_mode=True, multiline=True,
+            vi_mode=config.vi_mode, multiline=True,
             # enable_open_in_editor=True, # Handle this manually
             key_bindings=bindings,
             history=history,
@@ -56,6 +56,9 @@ class Session():
             bottom_toolbar=self.bottom_toolbar if config.type_bar_enabled
                            else None)
         self._psession.message = self.in_prompt_message
+
+        if config.vi_mode:
+            vimcursor.setup_vim_cursor()
 
         self._cur_lineno = 1#len(self._psession.history.get_strings())+1
 

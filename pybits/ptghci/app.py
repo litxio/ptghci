@@ -8,7 +8,7 @@ import threading
 from prompt_toolkit import print_formatted_text, ANSI
 from prompt_toolkit.shortcuts import PromptSession
 from ptghci import settings, engine, dispatch, \
-    session, vimcursor, exceptions, response
+    session, exceptions, response
 
 try:
     from pdb_clone import pdbhandler; pdbhandler.register()
@@ -29,7 +29,6 @@ class App:
         self.oop_engine = oop_engine
 
     def run(self):
-        vimcursor.setup_vim_cursor()
 
         if isinstance(threading.current_thread(), threading._MainThread):
             signal.signal(signal.SIGINT, int_handler)
