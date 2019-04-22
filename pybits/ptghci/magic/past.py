@@ -7,10 +7,13 @@ from ptghci.response import Response
 from ptghci.highlight import hl
 
 class ArgParseException(Exception):
-    def __init__(message):
+    def __init__(self, message):
         self.message = message
 
 class AP(argparse.ArgumentParser):
+    def __init__(self, *args, **kwargs):
+        self.last_msg = ''
+        super().__init__(*args, **kwargs)
     def error(self, msg):
         self.last_msg = msg
         raise Exception(msg)

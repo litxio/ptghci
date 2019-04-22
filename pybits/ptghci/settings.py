@@ -13,7 +13,8 @@ DEFAULTS = {
     'typeBarEnabled': True,
     'typeBarStyle': 'noreverse bg:#222222',
     'typeBarTextStyle': '',
-    'magicPrefix': '%'
+    'magicPrefix': '%',
+    'viMode': False
 }
 
 class Settings():
