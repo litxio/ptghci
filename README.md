@@ -1,34 +1,75 @@
-# ptghci-engine
+# ptGHCi
 
 ## Overview
 
 ptghci is an interactive command shell for Haskell designed for high-productivity interactive coding.  It is implemnted as a wrapper around GHCi based on Python's `prompt-toolkit` library and heavily inspired by iPython.  
 
+## Features
+
+### Syntax highlighting
+
+Highlighting is based on the `pygments` library, with a variety of styles available through the `%style` magic command.
+
+![Syntax highlighting](https://litxio.github.io/ptghci/images/syntax_highlight.svg)
+
+### Multiline commands with automatic indentation
+
+Use <Alt-Enter> (a.k.a. <Meta-Enter>) to insert a new line.  ptGHCi will also intelligently insert a new line when Enter is pressed after an operator, following keywords like `do` and `while`, or when within unclosed brackets.
+
+![Auto-indent](https://litxio.github.io/ptghci/images/autoindent.svg)
+
+### Real-time type display
+
+With `typeBarEnabled` on, ptGHCi shows the type of the identifier under the cursor in real-time while you type.  Also shows the types of tab-completed suggestions.
+
+![Type bar](https://litxio.github.io/ptghci/images/type_bar.svg)
+
+### Tab completion
+
+In a menu, with the ability to cycle through options with <Tab>
+
+![Tab completion](https://litxio.github.io/ptghci/images/tab_completion.svg)
+
+### Edit command in external editor
+
+ptGHCi prompt not powerful enough for you?  Press <F2> to edit the current entry at the prompt in an external editor of your choosing.
+
+![External editor](https://litxio.github.io/ptghci/images/external_editor.svg)
+
+### Show and re-run command history
+
+Use the `%past` command to list prior commands entered into the prompt during the current session, and `%rerun` to rerun past commands.  Useful for restoring bindings after a `:reload`.  
+
+![Command history](https://litxio.github.io/ptghci/images/history.svg)
+
 ## Installation
 
+Use `stack` to install the `ptghci` binary on your `$PATH`; ptGHCi uses libpython and you will need to use `pip` to install the Python requirements:
+
 ```
-pip install -r requirements.txt
+git clone https://github.com/litxio/ptghci
+cd ptghci
+pip3 install -r pybits/requirements.txt
 stack install
 ```
 
-## Usage
+## Usage and configuration
 
-# Features
+Just run `ptghci` to start a session; any command line arguments will be passed to GHCi.  
 
-## Syntax highlighting
+ptGHCi uses a yaml configuration file, which it will look for in the following locations in order of decreasing priority:
 
-## Auto-indent
+ * ./ptghci.yaml
+ * ./.ptghci.yaml
+ * $HOME/.ptghci.yaml
 
-## Tab completion
+The file `ptghci.yaml.defaults` lists the available options and their defaults.  
 
-## Edit command in editor
+### Magic commands
 
-## Real-time type display
+Special "magic" commands understood by ptGHCi start with `%` by default:
 
-## Magic commands
-
-## History
-
-## Auto-open doc/source in Web browser
-
-# Configuration
+ * `%past [-n N]`: Lists the prior commands entered into the prompt during the current session.  Use `%past -n N` to list up to N past commands, including commands from prior sessions.
+ * `%rerun <lines or ranges>`: Re-runs past commands, provided as a line number, range, or comma-separated list of line numbers (prefixed by 'p' for history from past sessions) and ranges. Example: %rerun 3,4-5,p8,p23-p24
+ * `%hoogle <identifier>`: Runs hoogle for the identifier
+ * `%style [style_name]`: Without an argument, lists the available styles with sample code.  With an argument, sets the style to the given style name.  
