@@ -73,3 +73,5 @@ Special "magic" commands understood by ptGHCi start with `%` by default:
  * `%rerun <lines or ranges>`: Re-runs past commands, provided as a line number, range, or comma-separated list of line numbers (prefixed by 'p' for history from past sessions) and ranges. Example: %rerun 3,4-5,p8,p23-p24
  * `%hoogle <identifier>`: Runs hoogle for the identifier
  * `%style [style_name]`: Without an argument, lists the available styles with sample code.  With an argument, sets the style to the given style name.  
+
+ If you find it annoying to have to distinguish between `:` GHCi commands and '%' ptGHCi commands, you can set the `magicPrefix` configuration option to ":" and use colon for everything.

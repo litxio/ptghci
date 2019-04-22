@@ -93,16 +93,16 @@ def handle_DBG(command, args, session, config, dispatcher):
 
 
 def handle_info(command, args, session, config, dispatcher):
-    resp = dispatcher.dispatch(":"+command+' '+(args or ''))
+    resp = dispatcher.dispatch_ghci_command(":"+command+' '+(args or ''))
 
-    # TODO Don't try to highlight if we get an error message
+    # Don't try to highlight if we get an error message
     if resp.success:
         resp.content = hl(resp.content, config)
     return resp
 
 
 def handle_ghci_command(command, args, session, config, dispatcher):
-    return dispatcher.dispatch(":"+command+' '+(args or ''))
+    return dispatcher.dispatch_ghci_command(":"+command+' '+(args or ''))
 
 
 MAGIC_COMMANDS = CharTrie({
