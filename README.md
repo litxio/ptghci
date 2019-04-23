@@ -75,3 +75,10 @@ Special "magic" commands understood by ptGHCi start with `%` by default:
  * `%style [style_name]`: Without an argument, lists the available styles with sample code.  With an argument, sets the style to the given style name.  
 
  If you find it annoying to have to distinguish between `:` GHCi commands and '%' ptGHCi commands, you can set the `magicPrefix` configuration option to ":" and use colon for everything.
+
+
+## Known limitations
+
+ * Reading from STDIN with `getLine` and the like is not yet supported
+ * Running the GHCi debugger with `:trace` is not yet supported
+ * I know of no reason that it should not be possible to run ptGHCi on Windows, but this has not yet been tested.  Pkg-config, pcre-light, and zeromq4-haskell will need to be installed correctly with their dependencies.  If anyone tries installing on Windows I would love to hear about the results.
