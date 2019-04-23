@@ -65,7 +65,7 @@ ptGHCi uses a yaml configuration file, which it will look for in the following l
 
 The file `ptghci.yaml.defaults` lists the available options and their defaults.  
 
-###Magic commands
+### Magic commands
 
 Special "magic" commands understood by ptGHCi start with `%` by default:
 
