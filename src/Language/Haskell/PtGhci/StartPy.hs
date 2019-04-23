@@ -10,6 +10,7 @@ import Foreign.Storable
 import System.Environment
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
+import System.FilePath
 import Data.String
 import Foreign.Marshal.Array
 import Data.Char (ord)
@@ -25,7 +26,7 @@ startPythonApp (requestAddr, controlAddr, stdoutAddr, stderrAddr) = do
   ourpp <- getDataFileName "pybits"
   let pythonPath = case pythonPath0 of
                      Nothing -> ourpp
-                     Just s -> s ++ ":" ++ ourpp
+                     Just s -> s ++ (searchPathSeparator:ourpp)
   setEnv "PYTHONPATH" pythonPath
   setEnv "PTGHCI_REQUEST_ADDR" requestAddr
   setEnv "PTGHCI_CONTROL_ADDR" controlAddr
