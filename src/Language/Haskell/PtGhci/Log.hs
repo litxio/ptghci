@@ -10,8 +10,13 @@ getVerboseLevel config = case config ^. verbosity of
                         Just l -> l
 
 writeLog :: Env -> Text -> IO ()
-writeLog e t = hPutStrLn handle t >> hFlush handle
+writeLog e t = case handle of
+                 Nothing -> return ()
+                 Just h -> hPutStrLn h t >> hFlush h
   where handle = e ^. logHandle
+
+logerr :: StringConv a Text => Env -> a -> IO ()
+logerr e t = when (getVerboseLevel (e^.config) >= Error) $ writeLog e (toS t)
 
 info :: StringConv a Text => Env -> a -> IO ()
 info e t = when (getVerboseLevel (e^.config) >= Info) $ writeLog e (toS t)

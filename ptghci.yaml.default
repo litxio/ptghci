@@ -12,6 +12,7 @@ typeBarTextStyle: ''
 ## By default, uses the open-browser package to determine the user's preferred
 ## browser
 #webBrowser: firefox
+## By default, no logging
+#logFile: "ptghci_log.txt"
 verbosity: Info # One of Trace, Debug, Info, Warn, Error, Critical
-logFile: "ptghci_log.txt"
 viMode: false
