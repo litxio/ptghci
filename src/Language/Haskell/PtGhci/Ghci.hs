@@ -117,7 +117,9 @@ startGhciProcess process echo0 = do
             consume name finish = do
                 let h = if name == Stdout then out else err
                 fix $ \rec -> do
-                    el <- tryBool isEOFError $ T.unpack . decodeUtf8 <$> BS.hGetLine h
+                    el <- tryBool isEOFError $ T.unpack 
+                                               . T.replace "\r" ""
+                                               . decodeUtf8 <$> BS.hGetLine h
                     case el of
                         Left err -> print err >>
                                       return Nothing
@@ -239,7 +241,9 @@ startGhciProcess process echo0 = do
                 let h           = if stream == Stdout then out else err
                     captureDest = if stream == Stdout then ghciCapturedOut 
                                                       else ghciCapturedErr
-                el <- tryBool isEOFError $ T.unpack . decodeUtf8 <$> BS.hGetLine h
+                el <- tryBool isEOFError $ T.unpack 
+                                           . T.replace "\r" ""
+                                           . decodeUtf8 <$> BS.hGetLine h
                 case el of
                   Left e -> do
                     streamLog $ "Got EOF on " ++ show stream
