@@ -8,7 +8,7 @@ ptGHCi is an interactive command shell for Haskell designed for high-productivit
 
 ### Syntax highlighting
 
-Highlighting is based on the `pygments` library, with a variety of styles available through the `%style` [magic command](#magic-commands)magic command.
+Highlighting is based on the `pygments` library, with a variety of styles available through the `%style` [magic command](#magic-commands).
 
 ![Syntax highlighting](https://litxio.github.io/ptghci/images/syntax_highlight.svg)
 
