@@ -14,7 +14,7 @@ Highlighting is based on the `pygments` library, with a variety of styles availa
 
 ### Multiline commands with automatic indentation
 
-Use <Alt-Enter> (a.k.a. <Meta-Enter>) to insert a new line.  ptGHCi will also intelligently insert a new line when Enter is pressed after an operator, following keywords like `do` and `while`, or when within unclosed brackets.
+Use `<Alt-Enter>` (a.k.a. `<Meta-Enter>`) to insert a new line.  ptGHCi will also intelligently insert a new line when Enter is pressed after an operator, following keywords like `do` and `while`, or when within unclosed brackets.
 
 ![Auto-indent](https://litxio.github.io/ptghci/images/autoindent.svg)
 
@@ -32,7 +32,7 @@ In a menu, with the ability to cycle through options with <Tab>
 
 ### Edit command in external editor
 
-ptGHCi prompt not powerful enough for you?  Press <F2> to edit the current entry at the prompt in an external editor of your choosing.
+ptGHCi prompt not powerful enough for you?  Press `<F2>` to edit the current entry at the prompt in an external editor of your choosing.
 
 ![External editor](https://litxio.github.io/ptghci/images/external_editor.svg)
 
