@@ -12,7 +12,7 @@ from ptghci import settings, engine, dispatch, \
 
 try:
     from pdb_clone import pdbhandler; pdbhandler.register()
-except ModuleNotFoundError:
+except ImportError:
     pass
 
 def int_handler(sig, frame):

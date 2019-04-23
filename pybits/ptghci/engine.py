@@ -134,7 +134,7 @@ class Engine():
         env = os.environ
         env['PTGHCI_ENGINE_MODE'] = '1'
         self._proc = Popen(args, stdin=DEVNULL, stdout=PIPE,
-                           encoding='utf8', bufsize=1, universal_newlines=True)
+                           bufsize=1, universal_newlines=True)
         
         endpoints_line = self._proc.stdout.readline()
         comm_addr, ctrl_addr, stdout_addr, stderr_addr \
@@ -182,12 +182,6 @@ class Engine():
 
         return _response_from_reply(message)
 
-        # try:
-        #     message = self.comm_socket.recv()
-        #     return json.loads(message)
-        # except KeyboardInterrupt:
-        #     self.send_interrupt()
-        #     raise
 
     def find_doc(self, identifier):
         self._await_send(json.dumps({'identifier': identifier,
@@ -279,7 +273,7 @@ class Engine():
                 #print("POLLRES", pollres)
                 if pollres:
                     message = self.comm_socket.recv()
-                    return json.loads(message)
+                    return json.loads(message.decode('utf-8'))
                 time.sleep(.001)
             except KeyboardInterrupt as interrupt:
                 self.send_interrupt()
