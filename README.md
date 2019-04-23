@@ -26,7 +26,7 @@ With `typeBarEnabled` on, ptGHCi shows the type of the identifier under the curs
 
 ### Tab completion
 
-In a menu, with the ability to cycle through options with <Tab>
+In a menu, with the ability to cycle through options with `<Tab>`
 
 ![Tab completion](https://litxio.github.io/ptghci/images/tab_completion.svg)
 
