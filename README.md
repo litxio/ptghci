@@ -2,19 +2,19 @@
 
 ## Overview
 
-ptGHCi is an interactive command shell for Haskell designed for high-productivity interactive coding.  It is implemnted as a wrapper around GHCi based on Python's `prompt-toolkit` library and heavily inspired by IPython.  
+ptGHCi is an interactive command shell for Haskell designed for high-productivity interactive coding.  It is implemented as a wrapper around GHCi based on Python's `prompt-toolkit` library and heavily inspired by IPython.  
 
 ## Features
 
 ### Syntax highlighting
 
-Highlighting is based on the `pygments` library, with a variety of styles available through the `%style` [magic command](#magic-commands)magic command.
+Highlighting is based on the `pygments` library, with a variety of styles available through the `%style` [magic command](#magic-commands).
 
 ![Syntax highlighting](https://litxio.github.io/ptghci/images/syntax_highlight.svg)
 
 ### Multiline commands with automatic indentation
 
-Use <Alt-Enter> (a.k.a. <Meta-Enter>) to insert a new line.  ptGHCi will also intelligently insert a new line when Enter is pressed after an operator, following keywords like `do` and `while`, or when within unclosed brackets.
+Use `<Alt-Enter>` (a.k.a. `<Meta-Enter>`) to start a new line.  ptGHCi will also intelligently start a new line when Enter is pressed after an operator, following keywords like `do` and `while`, or when within unclosed brackets.
 
 ![Auto-indent](https://litxio.github.io/ptghci/images/autoindent.svg)
 
@@ -32,7 +32,7 @@ In a menu, with the ability to cycle through options with <Tab>
 
 ### Edit command in external editor
 
-ptGHCi prompt not powerful enough for you?  Press <F2> to edit the current entry at the prompt in an external editor of your choosing.
+ptGHCi prompt not powerful enough for you?  Press `<F2>` to edit the current entry at the prompt in an external editor of your choosing.
 
 ![External editor](https://litxio.github.io/ptghci/images/external_editor.svg)
 
@@ -65,7 +65,7 @@ ptGHCi uses a yaml configuration file, which it will look for in the following l
 
 The file `ptghci.yaml.defaults` lists the available options and their defaults.  
 
-###Magic commands
+### Magic commands
 
 Special "magic" commands understood by ptGHCi start with `%` by default:
 
