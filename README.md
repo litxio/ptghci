@@ -2,7 +2,7 @@
 
 ## Overview
 
-ptGHCi is an interactive command shell for Haskell designed for high-productivity interactive coding.  It is implemnted as a wrapper around GHCi based on Python's `prompt-toolkit` library and heavily inspired by IPython.  
+ptGHCi is an interactive command shell for Haskell designed for high-productivity interactive coding.  It is implemented as a wrapper around GHCi based on Python's `prompt-toolkit` library and heavily inspired by IPython.  
 
 ## Features
 
