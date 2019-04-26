@@ -27,7 +27,6 @@ import System.Directory (findExecutable)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString as BS
 import Text.Regex.PCRE.Heavy
-import System.Console.CmdArgs.Verbosity
 import Language.Haskell.PtGhci.PtgRequest as PtgRequest
 import Language.Haskell.PtGhci.PtgResponse as PtgResponse
 import Language.Haskell.PtGhci.Doc
@@ -57,26 +56,23 @@ setupSockets = do
   return $ Sockets requester controlSock stdoutSock stderrSock
 
 socketEndpoints :: Sockets -> IO (String, String, String, String)
-socketEndpoints Sockets{..} = (,,,) <$> lastEndpoint requestSock
-                                    <*> lastEndpoint controlSock
-                                    <*> lastEndpoint stdoutSock
-                                    <*> lastEndpoint stderrSock
+socketEndpoints Sockets{..} = do
+  eps <- try $ (,,,) <$> lastEndpoint requestSock
+                     <*> lastEndpoint controlSock
+                     <*> lastEndpoint stdoutSock
+                     <*> lastEndpoint stderrSock
+  case eps of
+    Left (err :: ZMQError) -> do
+      putErrLn $ "Error getting ZeroMQ socket endpoints: "
+                  ++ displayException err
+      throwIO err
+    Right val -> return val
 
 -- | Main entry point for the Haskell end of ptGHCi.  Returns a thread in which
 -- the main loop runs, and an IO action that will cause the loop to terminate.
-runApp :: Sockets -> IO (Async (), IO ())
-runApp sockets = do
-  configPath <- findConfigLocation
-  config <- case configPath of
-               Just p -> loadConfig p
-               Nothing -> return defaultConfig
-  when (config ^. verbosity >= Just Trace) $ setVerbosity Loud
+runApp :: Env -> Sockets -> IO (Async (), IO ())
+runApp env sockets = do
 
-  -- This keeps interrupt signal from the parent (python) process from messing
-  -- up our executions. TODO this won't work on Windows -- do I need it?
-  -- joinProcessGroup 0
-
-  promptFlag <- newEmptyMVar :: IO (MVar ())
   let sendOutput stream val =
         case stream of
           -- TODO -- double conversion inefficient
@@ -84,7 +80,7 @@ runApp sockets = do
             send (stdoutSock sockets) [] $ toS (stripInternalGhcid $ toS val)
           Stderr -> send (stderrSock sockets) [] $ toS (stripInternalGhcid $ toS val)
 
-  ghciCommand <- case _ghciCommand config of
+  ghciCommand <- case _ghciCommand (env^.config) of
                    Just cmd -> return $ unpack cmd
                    Nothing -> findExecutable "stack" >>= \case
                        Nothing -> return "ghci"
@@ -92,19 +88,22 @@ runApp sockets = do
 
   cmdline <- unwords <$> getArgs
   (ghci, loadMsgs) <- startGhci (ghciCommand++" "++cmdline) Nothing sendOutput
-  env <- mkEnv config ghci
-  -- info env $ format ("Request/control sockets: "%string%", "%string
-  --                    %", "%string%", "%string)
-  --                    reqPort controlPort stdoutPort stderrPort
   execCapture ghci ":set -fdiagnostics-color=always"
   execCapture ghci ":set prompt-cont \"\""
   intThread <- async $ awaitInterrupt env (controlSock sockets) ghci
-  thread <- async $ race_ (loop env sockets loadMsgs)
-                          (waitForProcess (process ghci) >> debug env "GHCi finished, exiting")
-  return (thread, stopGhci (_ghci env))
+
+  stopping <- newIORef False
+  thread <- async $ race_ (handle (handleExc env ghci stopping)
+                                  (loop env ghci sockets loadMsgs))
+                          (waitForProcess (process ghci) 
+                           >> writeIORef stopping True
+                           >> info env "GHCi process finished, exiting")
+  return (thread, shutdown env ghci stopping)
   where
-    loop env sockets@Sockets{..} loadMsgs = handle (handleExc env) $ do
-      request <- receive requestSock
+    loop env ghci sockets@Sockets{..} loadMsgs = do
+      request <- try (receive requestSock) >>= \case
+        Left (err :: SomeException) -> rethrowWithLog env "When calling receive: " err
+        Right r -> return r
       let req = decode (BSL.fromStrict request) :: Maybe PtgRequest
       debug env ("Got request " <> show req :: Text)
    
@@ -116,7 +115,7 @@ runApp sockets = do
           case msg of
             -- Capture all stdout between the command and next prompt
             RequestExecCapture code ->
-              withAsync (runMultiline env code)
+              withAsync (runMultiline ghci code)
                         $ \a2 -> do
                           (outRes, errRes) <- wait a2
                           let response = if checkForError outRes errRes
@@ -128,7 +127,7 @@ runApp sockets = do
 
             -- Don't capture result, just echo over the stdout/stderr sockets
             RequestExecStream code -> do
-              seq <- runMultilineStream env sockets code
+              seq <- runMultilineStream ghci sockets code
               let response = ExecStreamResponse True Nothing seq
               sendResponse env requestSock response
 
@@ -143,13 +142,13 @@ runApp sockets = do
               -- then re-enable it.  TODO: figure out how to respect the
               -- initial state of the show-valid-hole-fits flag.
               when (T.take 1 identifier == "_" && not showHoleFits)
-                $ void $ runLine env ":set -fno-show-valid-hole-fits"
+                $ void $ runLine ghci ":set -fno-show-valid-hole-fits"
 
               debug env $ "about to type " ++ show identifier
-              (outRes, errRes) <- runLine env $ ":t " <> identifier
+              (outRes, errRes) <- runLine ghci $ ":t " <> identifier
               debug env $ "finished typing:" <> T.unlines outRes
               when (T.take 1 identifier == "_" && not showHoleFits)
-                $ void $ runLine env ":set -fshow-valid-hole-fits"
+                $ void $ runLine ghci ":set -fshow-valid-hole-fits"
               debug env $ "type req stdout: " <> stripAnsi (T.unlines outRes)
               debug env $ "type req stderr: " <> stripAnsi (T.unlines errRes)
               let prepare = T.strip . T.unlines . dropBlankLines
@@ -160,11 +159,11 @@ runApp sockets = do
               sendResponse env requestSock response
 
             RequestCompletion lineBeforeCursor -> do
-              response <- runCompletion env lineBeforeCursor
+              response <- runCompletion ghci lineBeforeCursor
               sendResponse env requestSock response
 
             RequestOpenDoc identifier -> do
-              result <- try $ findDocForIdentifier env identifier
+              result <- try $ findDocForIdentifier env ghci identifier
               let response = 
                     case result of
                       Right path -> ExecCaptureResponse True $ pack path
@@ -173,24 +172,36 @@ runApp sockets = do
               sendResponse env requestSock response
 
             RequestOpenSource identifier -> do
-              result <- try $ findDocSourceForIdentifier env identifier
+              result <- try $ findDocSourceForIdentifier env ghci identifier
               let response = 
                     case result of
                       Right path -> ExecCaptureResponse True $ pack path
                       Left (ex :: DocException) ->
                         ExecCaptureResponse False $ showDocException ex
               sendResponse env requestSock response
-      loop env sockets loadMsgs
+      loop env ghci sockets loadMsgs
 
-    handleExc env (e :: SomeException) = do
-      logerr env $ displayException e
-      stop (_ghci env)
+    handleExc env ghci stopping (e :: SomeException) = do
+      cleanStop <- readIORef stopping
+      debug env $ "Exception in runApp loop: " ++ displayException e
+                  ++ if cleanStop then " during clean stop (this may be harmless)"
+                                  else " causing unexpected stop"
+      
+      unless cleanStop $ putErrLn ("Unexpected exception in runApp loop: "
+                                   ++ displayException e)
+      stopGhci ghci
 
+    shutdown env ghci stopping = do
+      writeIORef stopping True
+      debug env "ptGHCi engine shutting down"
+      stopGhci ghci
 
 sendResponse :: Sender a => Env -> Socket a -> PtgResponse -> IO ()
 sendResponse env sock msg = do
   debug env ("Sending response: " <> show msg :: Text)
-  send sock [] $ BSL.toStrict $ encode msg
+  try (send sock [] $ BSL.toStrict $ encode msg) >>= \case
+      Left (err :: SomeException) -> rethrowWithLog env "When calling send: " err
+      Right r -> return r
 
 -- ghcid imports several modules under the name "INTERNAL_GHCID".  Showing
 -- this import name will just be confusing to the end user, so strip it out
@@ -198,23 +209,23 @@ sendResponse env sock msg = do
 stripInternalGhcid :: Text -> Text
 stripInternalGhcid = T.replace "INTERNAL_GHCID." ""
 
-runLine :: Env -> Text -> IO ([Text], [Text])
-runLine env cmd = do
-  results <- execCapture (_ghci env) (T.unpack cmd)
+runLine :: Ghci -> Text -> IO ([Text], [Text])
+runLine ghci cmd = do
+  results <- execCapture ghci (T.unpack cmd)
   return $ both (fmap $ stripInternalGhcid . T.pack) results
   where
     both f = bimap f f
 
-runMultiline :: Env -> Text -> IO ([Text], [Text])
-runMultiline env cmd = runLine env (":{\n"<>cmd<>"\n:}\n")
+runMultiline :: Ghci -> Text -> IO ([Text], [Text])
+runMultiline ghci cmd = runLine ghci (":{\n"<>cmd<>"\n:}\n")
 
-runMultilineStream :: Env -> Sockets -> Text -> IO Int
-runMultilineStream env Sockets{..} cmd =
-  execStream (_ghci env) (":{\n"++T.unpack cmd++"\n:}\n")
+runMultilineStream :: Ghci -> Sockets -> Text -> IO Int
+runMultilineStream ghci Sockets{..} cmd =
+  execStream ghci (":{\n"++T.unpack cmd++"\n:}\n")
 
-runCompletion :: Env -> Text -> IO PtgResponse
-runCompletion env lineBeforeCursor = do
-  (outRes, errRes) <- runLine env $ ":complete repl " <> escaped
+runCompletion :: Ghci -> Text -> IO PtgResponse
+runCompletion ghci lineBeforeCursor = do
+  (outRes, errRes) <- runLine ghci $ ":complete repl " <> escaped
   if checkForError outRes errRes
      then return $ CompletionResponse False "" []
      else case parseCompletionResult outRes of
@@ -276,6 +287,3 @@ awaitInterrupt env sock ghci = forever $ do
   let reqStr = unpack $ decodeUtf8 request
   when (reqStr == "Interrupt") (interrupt ghci)
 
-stop ghci = do
-  stopGhci ghci
-  putText "**Engine stopping**"

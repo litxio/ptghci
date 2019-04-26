@@ -19,7 +19,7 @@ spec = do
       err `shouldBe` []
 
     it "executes and captures -- something printed" $ do
-      (out, err) <- execCapture ghci "print 234"
+      (out, err) <- execCapture ghci "Prelude.print 234"
       out `shouldBe` ["234"]
       err `shouldBe` []
 

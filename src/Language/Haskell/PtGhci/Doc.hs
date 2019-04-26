@@ -48,9 +48,9 @@ data VersionQualifiedPackage = VQP
 
 -- | Find the local HTML file for the given identifier in scope in ghci,
 -- and open it in the Web browser.
-openDocForIdentifier :: Env -> Text -> IO Text
-openDocForIdentifier env name = do
-  url <- pack <$> findDocForIdentifier env name
+openDocForIdentifier :: Env -> Ghci -> Text -> IO Text
+openDocForIdentifier env ghci name = do
+  url <- pack <$> findDocForIdentifier env ghci name
   T.putStrLn $ "Opening " <> url
   openBrowser env url
   return url
@@ -58,9 +58,8 @@ openDocForIdentifier env name = do
     -- and probably other things.
 
 
-findDocForIdentifier :: Env -> Text -> IO FilePath
-findDocForIdentifier env name = do
-  let ghci = _ghci env
+findDocForIdentifier :: Env -> Ghci -> Text -> IO FilePath
+findDocForIdentifier env ghci name = do
   mod <- findModuleForIdentifier ghci name
   possibleBasePaths <- docBasePathCandidates mod
   let possiblePaths :: [FilePath]
@@ -83,9 +82,9 @@ findDocForIdentifier env name = do
     baseName = last (T.split (=='.') name)
 
 
-openDocSourceForIdentifier :: Env -> Text -> IO Text
-openDocSourceForIdentifier env name = do
-  url <- pack <$> findDocSourceForIdentifier env name
+openDocSourceForIdentifier :: Env -> Ghci -> Text -> IO Text
+openDocSourceForIdentifier env ghci name = do
+  url <- pack <$> findDocSourceForIdentifier env ghci name
   T.putStrLn $ "Opening " <> url
   openBrowser env url
   return url
@@ -93,9 +92,8 @@ openDocSourceForIdentifier env name = do
     -- and probably other things.
 
 
-findDocSourceForIdentifier :: Env -> Text -> IO FilePath
-findDocSourceForIdentifier env name = do
-  let ghci = _ghci env
+findDocSourceForIdentifier :: Env -> Ghci -> Text -> IO FilePath
+findDocSourceForIdentifier env ghci name = do
   mod <- findModuleForIdentifier ghci name
   possibleBasePaths <- docBasePathCandidates mod
   let possiblePaths :: [FilePath]

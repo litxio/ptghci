@@ -6,7 +6,6 @@ module Language.Haskell.PtGhci.Env
   ) where
   
 import Language.Haskell.PtGhci.Prelude
-import Language.Haskell.PtGhci.Ghci
 import GHC.Generics
 import Lens.Micro.TH
 import Data.Aeson
@@ -17,17 +16,16 @@ import Language.Haskell.PtGhci.Config
 
 data Env = Env
   { _config :: Config
-  , _ghci :: Ghci
   , _logHandle :: Maybe Handle
   , _lineCounter :: IORef Int
   }
 makeLenses ''Env
 
-mkEnv :: Config -> Ghci -> IO Env
-mkEnv config ghci = do
+mkEnv :: Config -> IO Env
+mkEnv config = do
   lhandle <- case _logFile config of
                Nothing -> return Nothing
                Just path -> Just <$> openFile path WriteMode
   counter <- newIORef 0
-  return $ Env config ghci lhandle counter
+  return $ Env config lhandle counter
 

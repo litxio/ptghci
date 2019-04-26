@@ -2,6 +2,7 @@ module Language.Haskell.PtGhci.Log where
 
 import Language.Haskell.PtGhci.Prelude
 import Language.Haskell.PtGhci.Env
+import qualified Data.Text as T
 import System.IO (hFlush)
 
 getVerboseLevel :: Config -> Verbosity
@@ -26,3 +27,8 @@ debug e t = when (getVerboseLevel (e^.config) >= Debug) $ writeLog e (toS t)
 
 trace :: StringConv a Text => Env -> a -> IO ()
 trace e t = when (getVerboseLevel (e^.config) >= Trace) $ writeLog e (toS t)
+
+rethrowWithLog :: (Exception e, StringConv a Text) => Env -> a -> e -> IO b
+rethrowWithLog env s e = do
+  writeLog env $ toS s <> T.pack (displayException e)
+  throwIO e

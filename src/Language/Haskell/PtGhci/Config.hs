@@ -35,6 +35,13 @@ dropOneAndParse = genericParseJSON opts
 
 defaultConfig = Config (Just Debug) (Just "log.txt") Nothing Nothing
 
+getConfig :: IO Config
+getConfig = do
+  configPath <- findConfigLocation
+  case configPath of
+    Just p -> loadConfig p
+    Nothing -> return defaultConfig
+
 loadConfig :: FilePath -> IO Config
 loadConfig path = do
   eitherConfig <- decodeFileEither path
