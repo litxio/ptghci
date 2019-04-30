@@ -2,6 +2,7 @@ import math
 import re
 import subprocess
 import shlex
+import shutil
 import webbrowser
 from . import run
 from ..highlight import hl
@@ -55,8 +56,21 @@ def handle_magic(entry: str, session, config, dispatcher) -> Response:
 
 def handle_hoogle(command, args, session, config, dispatcher):
     try:
-        hoogle_output = subprocess.check_output(['hoogle']+shlex.split(args))
+        base_cmd = shlex.split(config.hoogle_command)
+    except AttributeError:
+        have_stack = shutil.which('stack')
+        if have_stack:
+            base_cmd = ['stack', 'hoogle']
+        else:
+            base_cmd = ['hoogle']
+    cmd = base_cmd + shlex.split(args)
+    try:
+        hoogle_output = subprocess.check_output(cmd)
         resp = Response.from_value(hl(hoogle_output.decode(), config))
+    except FileNotFoundError:
+        resp = Response.from_error_message("Couldn't find hoogle executable."
+                                           "Shell command was '%s'"
+                                           % (' '.join(cmd)))
     except subprocess.CalledProcessError as det:
         resp = Response.from_error_message("Hoogle call returned error %d: %s"
                 % (det.returncode, det.output))

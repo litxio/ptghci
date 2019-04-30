@@ -2,17 +2,31 @@
 ## ghciCommand defaults to "stack ghci" if stack is on PATH, otherwise just "ghci".
 ## "cabal new-repl" is another popular choice.
 #ghciCommand: stack ghci
+
+## hoogleCommand defaults to "stack hoogle" if stack is on PATH, otherwise just "hoogle".
+#hoogleCommand: stack hoogle
+
 inputPrompt: "\x1b[32;1m\u03BB [{lineno}]\x1b[0m: "
+
 historyPath: "~/.ptghci_history"
+
 style: "default"
+
 outPrompt: "\x1b[31;1mOut [{lineno}]\x1b[0m: "
+
 typeBarEnabled: true
+
 typeBarStyle: 'noreverse bg:#222222'
+
 typeBarTextStyle: ''
+
 ## By default, uses the open-browser package to determine the user's preferred
 ## browser
 #webBrowser: firefox
+
 ## By default, no logging
 #logFile: "ptghci_log.txt"
+
 verbosity: Info # One of Trace, Debug, Info, Warn, Error, Critical
+
 viMode: false

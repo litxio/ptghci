@@ -3,11 +3,6 @@ module Language.Haskell.PtGhci.Ghci (
   Stream(..) 
   ) where
 
--- | This module consists of logic that relates to communicating with the GHCi
--- process.  Portions of the code in this module are taken verbatim from Neil
--- Mitchell's fabulous ghcid project.  The parts that are messy and/or buggy
--- are mine.
-
 import Language.Haskell.PtGhci.Prelude hiding (traceIO, appendFile)
 import Debug.Trace (traceIO)
 import System.Process
@@ -29,6 +24,11 @@ import System.Console.CmdArgs.Verbosity
 import Language.Haskell.Ghcid.Parser
 import Language.Haskell.Ghcid.Types
 import Language.Haskell.Ghcid.Util
+
+-- | This module consists of logic that relates to communicating with the GHCi
+-- process.  Portions of the code in this module are taken verbatim from Neil
+-- Mitchell's fabulous ghcid project.  The parts that are messy and/or buggy
+-- are mine.
 
 streamLogFile = "streams.log"
 
