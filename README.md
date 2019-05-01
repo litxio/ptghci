@@ -44,6 +44,8 @@ Use the `%past` magic command to list prior commands entered into the prompt dur
 
 ## Installation
 
+ptGHCi requires ZeroMQ, PCRE, and Python 3.3+.  You will also need the `pkg-config` tool for the installation process.
+
 Use `stack` to install the `ptghci` binary on your `$PATH`; ptGHCi uses libpython and you will need to use `pip` to install the Python requirements:
 
 ```
