@@ -19,7 +19,7 @@ class Dispatcher():
         if entry.startswith(self.config.magic_prefix):
             return magic.handle_magic(entry, self.session, self.config, self)
         elif entry.startswith(':'):
-            self.dispatch_ghci_command(entry)
+            return self.dispatch_ghci_command(entry)
         elif '\n' not in entry and entry.endswith('?'):
             return self.exec_ghci(':info '+entry[:-1])
         else:
