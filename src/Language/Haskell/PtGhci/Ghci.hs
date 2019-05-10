@@ -32,6 +32,9 @@ import Language.Haskell.Ghcid.Util
 
 streamLogFile = "streams.log"
 
+data StartupIsFinished = StartupIsFinished deriving (Eq, Show)
+instance Exception StartupIsFinished
+
 appendLine :: Handle -> String -> IO ()
 appendLine h s = hPutStrLn h (s ++ "\n")
 
@@ -94,56 +97,8 @@ startGhciProcess process echo0 = do
 
         -- I'd like the GHCi prompt to go away, but that's not possible, so I set it to a special
         -- string and filter that out.
-        let ghcid_prefix = "#~GHCID-START~#"
-            removePrefix = dropPrefixRepeatedly ghcid_prefix
-
         -- At various points I need to ensure everything the user is waiting for has completed
         -- So I send messages on stdout/stderr and wait for them to arrive
-        syncCount <- newVar 0
-        let syncReplay = do
-                i <- readVar syncCount
-                -- useful to avoid overloaded strings by showing the ['a','b','c'] form, see #109
-                let showStr xs = "[" ++ intercalate "," (map show xs) ++ "]"
-                let msg = "#~GHCID-FINISH-" ++ show i ++ "~#"
-                writeInp $ "INTERNAL_GHCID.putStrLn " ++ showStr msg ++ "\n" ++
-                        "INTERNAL_GHCID.hPutStrLn INTERNAL_GHCID.stderr " ++ showStr msg
-                return $ isInfixOf msg
-        let syncFresh = do
-                modifyVar_ syncCount $ return . succ
-                syncReplay
-
-        -- Consume from a stream until EOF (return Nothing) or some predicate returns Just
-        let consume :: Stream -> (String -> IO (Maybe a)) -> IO (Maybe a)
-            consume name finish = do
-                let h = if name == Stdout then out else err
-                fix $ \rec -> do
-                    el <- tryBool isEOFError $ T.unpack 
-                                               . T.replace "\r" ""
-                                               . decodeUtf8 <$> BS.hGetLine h
-                    case el of
-                        Left err -> print err >>
-                                      return Nothing
-                        Right l -> do
-                            -- streamLog $ "%" ++ upper (show name) ++ ": " ++ l
-                            res <- finish $ removePrefix l
-                            case res of
-                                Nothing -> rec
-                                Just a -> return $ Just a
-
-        let consume2 :: String -> (Stream -> String -> IO (Maybe a)) -> IO (a,a)
-            consume2 msg finish = do
-                -- fetch the operations in different threads as hGetLine may block
-                -- and can't be aborted by async exceptions, see #154
-                res1 <- onceFork $ consume Stdout (finish Stdout)
-                res2 <- onceFork $ consume Stderr (finish Stderr)
-                res1 <- res1
-                res2 <- res2
-                case liftM2 (,) res1 res2 of
-                    Nothing -> case cmdspec process of
-                        ShellCommand cmd -> throwIO $ UnexpectedExit cmd msg
-                        RawCommand exe args -> throwIO $ UnexpectedExit (unwords (exe:args)) msg
-                    Just v -> return v
-
         -- is anyone running running an exec statement, ensure only one person talks to ghci at a time
         isRunning <- newLock
             
@@ -295,36 +250,57 @@ startGhciProcess process echo0 = do
         -- Now wait for 'GHCi, version' to appear before sending anything real
         stdout <- newIORef []
         stderr <- newIORef []
-        sync <- newIORef $ const False
-        consume2 "" $ \strm s -> do
-            stop <- readIORef sync
-            if stop s then
-                return $ Just ()
-            else do
-                -- there may be some initial prompts on stdout before I set the prompt properly
-                s <- return $ maybe s (removePrefix . snd) $ stripInfix ghcid_prefix s
-                streamLog $ "%STDOUT2: " ++ s
-                modifyIORef (if strm == Stdout then stdout else stderr) (s:)
-                when (any (`isPrefixOf` s) ["GHCi, version ","GHCJSi, version "]) $ do
-                    -- the thing before me may have done its own Haskell compiling
-                    writeIORef stdout [s]
-                    writeIORef stderr [s]
-                    writeInp "import qualified System.IO as INTERNAL_GHCID"
-                    writeInp ":unset +s" 
-                    -- Put a newline after the prompt, because we are using line buffering
-                    writeInp $ ":set prompt " ++ "\"" ++ prompt ++ "\\n\""
+        let readDuringStartup :: Stream -> IO ()
+            readDuringStartup stream = handle (\(e::StartupIsFinished) -> return ()) $ do
+                let h = if stream == Stdout then out else err
+                    capture = if stream == Stdout then stdout else stderr
+                el <- tryBool isEOFError $ T.unpack
+                                           . T.replace "\r" ""
+                                           . decodeUtf8 <$> BS.hGetLine h
+                case el of
+                  Left e -> do
+                    let msg = "Got EOF from GHCi on " <> show stream <> " during startup"
+                    streamLog msg >> putErrLn msg
+                    throwIO e
+                  Right s -> do
+                    -- putStrLn $ "Appending  to" ++ show stream ++ ": " ++ s
+                    modifyIORef (if stream == Stdout then stdout else stderr) (s:)
+                    unless (stream == Stdout 
+                            && any (`isPrefixOf` s) ["GHCi, version ","GHCJSi, version "]) $
+                      readDuringStartup stream
 
-                    -- failure isn't harmful, so do them one-by-one
-                    forM_ (ghciFlagsRequired ++ ghciFlagsRequiredVersioned) $ \flag ->
-                        writeInp $ ":set " ++ flag
-                    writeIORef sync =<< syncFresh
-                return Nothing
-        r1 <- parseLoad . reverse <$> ((++) <$> readIORef stderr <*> readIORef stdout)
+        withAsync (readDuringStartup Stdout) $ \outThread ->
+          withAsync (readDuringStartup Stderr) $ \errThread -> do
+            wait outThread
+
+        -- Set up the GHCi environment
+        writeInp "import qualified System.IO as INTERNAL_GHCID"
+        writeInp ":unset +s" 
+        -- Put a newline after the prompt, because we are using line buffering
+        writeInp $ ":set prompt " ++ "\"" ++ prompt ++ "\\n\""
+
+        -- failure isn't harmful here, so set flags one-by-one
+        forM_ (ghciFlagsRequired ++ ghciFlagsRequiredVersioned) $ \flag ->
+            writeInp $ ":set " ++ flag
 
         async $ watchStream Stdout
         async $ watchStream Stderr
 
-        return (ghci, r1)
+        errMsgs <- readIORef stderr
+        outMsgs <- readIORef stdout
+        -- Run execCapture once to capture any leftover text sitting on stdout/stderr.
+        -- We also use this opportunity to see whether we have started up properly
+        res <- try $ execCapture ghci "0" :: IO (Either SomeException ([String], [String]))
+        when (isLeft res) $ do
+          putErrLn "It looks like GHCi did not start up properly.  The start-up messages were:"
+          putErrLn $ unlines errMsgs
+          putStrLn $ unlines outMsgs
+          die "GHCi did not start up properly"
+
+        let r1 = parseLoad . reverse $ errMsgs ++ outMsgs
+        r2 <- if any isLoading r1 then return [] else map (uncurry Loading) <$> showModules ghci
+
+        return (ghci, r1 ++ r2)
 
 -- | Start GHCi by running the given shell command, a helper around 'startGhciProcess'.
 startGhci

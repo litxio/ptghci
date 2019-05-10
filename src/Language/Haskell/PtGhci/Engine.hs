@@ -173,7 +173,7 @@ runApp env sockets = do
 
             RequestOpenSource identifier -> do
               result <- try $ findDocSourceForIdentifier env ghci identifier
-              let response = 
+              let response =
                     case result of
                       Right path -> ExecCaptureResponse True $ pack path
                       Left (ex :: DocException) ->
