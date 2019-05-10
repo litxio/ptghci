@@ -16,7 +16,7 @@ class AP(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
     def error(self, msg):
         self.last_msg = msg
-        raise Exception(msg)
+        raise ArgParseException(msg)
 
 def parse_args(argstr: str, magic_prefix: str):
     parser = AP(prog=magic_prefix+'past')
@@ -26,7 +26,7 @@ def parse_args(argstr: str, magic_prefix: str):
     args = shlex.split(argstr)
     try:
         return parser.parse_args(args)
-    except SystemExit:
+    except (SystemExit, ArgParseException):
         message = parser.format_usage()+parser.last_msg
         raise ArgParseException(message)
 
