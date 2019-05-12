@@ -276,6 +276,8 @@ startGhciProcess process echo0 = do
         -- Set up the GHCi environment
         writeInp "import qualified System.IO as INTERNAL_GHCID"
         writeInp ":unset +s" 
+        writeInp "INTERNAL_GHCID.hSetBuffering INTERNAL_GHCID.stdout INTERNAL_GHCID.LineBuffering"
+        writeInp "INTERNAL_GHCID.hSetBuffering INTERNAL_GHCID.stderr INTERNAL_GHCID.LineBuffering"
         -- Put a newline after the prompt, because we are using line buffering
         writeInp $ ":set prompt " ++ "\"" ++ prompt ++ "\\n\""
 
