@@ -96,3 +96,8 @@ def test_type_sig_indent5():
 def test_sumtype_indent1():
     assert get_haskell_indent(lines_to_doc(["data A = A",
                                        "| "])) == 7
+
+
+def test_guard_indent1():
+    assert get_haskell_indent(lines_to_doc(["f x",
+                                            "| "])) == 2

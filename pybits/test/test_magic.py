@@ -13,6 +13,14 @@ def test_past():
         driver.expect(r'1\+1', 1)
         driver.expect(r'2\+3', 1)
 
+def test_past_duplicate():
+    with PromptDriver() as driver:
+        driver.send_line('1')
+        driver.send_line('2')
+        driver.send_line('2')
+        driver.send_line(r'%past')
+        driver.expect(r'1', 1)
+        driver.expect(r'2', 1)
 
 def test_rerun():
     with PromptDriver() as driver:

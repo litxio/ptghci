@@ -34,6 +34,7 @@ class Session():
         lexer = PygmentsLexer(PtgHaskellLexer)
         history = ThreadedHistory(FileHistory(
             os.path.expanduser(config.history_path)))
+        self.initial_lines = len(list(history.load_history_strings()))
         pg_style = style_from_pygments_cls(get_style_by_name(config.style))
         bottom_toolbar_style = Style.from_dict({
             'bottom-toolbar':      config.type_bar_style,
@@ -110,7 +111,8 @@ class Session():
         return self._psession.prompt()
 
     def advance_lineno(self):
-        self._cur_lineno += 1 # len(self.history.get_strings())+1
+        self._cur_lineno \
+            = len(self.history.get_strings()) - self.initial_lines + 1
 
     def get_cur_lineno(self):
         return self._cur_lineno

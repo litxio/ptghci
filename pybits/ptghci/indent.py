@@ -139,7 +139,7 @@ def calc_indent_guard(document, pos):
     c = document.cursor_position_row - 1
     s = indent(document.current_line)
 
-    while c >= 1:
+    while c >= 0:
         if s == 0 and len(l) > 0:
             # top-level start, stop looking
             return indent_guard
@@ -434,6 +434,7 @@ def get_haskell_indent(document):
             return re.search(r'\bdata\b', prevline).start() + shiftwidth
         else:
             s = calc_indent_guard(document, line.index('='))
+            print("FIRINTG1")
             if s:
                 return s
             else:
@@ -450,6 +451,7 @@ def get_haskell_indent(document):
         if re.search(r'^\s*\bdata\b.+=.+$', prevline):
             return prevline.index('=')
         else:
+            print("FIRINTG2")
             s = calc_indent_guard(document, line.index('|'))
         if s:
             return s
