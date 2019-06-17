@@ -5,7 +5,6 @@ from .lexer import PtgHaskellLexer
 from pygments.styles import get_style_by_name
 from prompt_toolkit.application import get_app
 from prompt_toolkit import print_formatted_text
-from prompt_toolkit.history import FileHistory, ThreadedHistory
 from prompt_toolkit.filters import is_searching
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles.pygments import style_from_pygments_cls

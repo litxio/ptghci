@@ -7,6 +7,7 @@ import signal
 import threading
 from prompt_toolkit import print_formatted_text, ANSI
 from prompt_toolkit.shortcuts import PromptSession
+from prompt_toolkit.history import FileHistory, ThreadedHistory
 from ptghci import settings, engine, dispatch, \
     session, exceptions, response
 
@@ -25,9 +26,10 @@ class App:
                  history=None,
                  pt_print=print_formatted_text,
                  oop_engine=False):
+        self.config = settings.Settings.load()
         if history is None:
             self.history = ThreadedHistory(FileHistory(
-                os.path.expanduser(config.history_path)))
+                os.path.expanduser(self.config.history_path)))
         else:
             self.history = history
         self.PtPromptSession = PtPromptSession
@@ -39,7 +41,6 @@ class App:
         if isinstance(threading.current_thread(), threading._MainThread):
             signal.signal(signal.SIGINT, int_handler)
 
-        self.config = settings.Settings.load()
         if self.config.settings_path:
             print("Using settings file %s" % self.config.settings_path)
         try:
