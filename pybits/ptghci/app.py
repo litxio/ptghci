@@ -22,8 +22,14 @@ def int_handler(sig, frame):
 
 class App:
     def __init__(self, PtPromptSession=PromptSession,
+                 history=None,
                  pt_print=print_formatted_text,
                  oop_engine=False):
+        if history is None:
+            self.history = ThreadedHistory(FileHistory(
+                os.path.expanduser(config.history_path)))
+        else:
+            self.history = history
         self.PtPromptSession = PtPromptSession
         self.pt_print = pt_print
         self.oop_engine = oop_engine
@@ -43,7 +49,7 @@ class App:
                 self.ngin = engine.Engine(self.config, pt_print=self.pt_print)
 
             self.session = session.Session(self.config, self.ngin,
-                                           self.PtPromptSession,
+                                           self.PtPromptSession, self.history,
                                            self.pt_print)
 
             self.dispatcher = dispatch.Dispatcher(self.session, self.config,

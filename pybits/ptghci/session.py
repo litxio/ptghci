@@ -25,15 +25,13 @@ def default_continuation(prompt_width, line_number, wrap_count):
 
 
 class Session():
-    def __init__(self, config, engine, PtPromptSession,
+    def __init__(self, config, engine, PtPromptSession, history,
                  pt_print=print_formatted_text):
         self.config = config
         self.engine = engine
         self.pt_print = pt_print
         bindings = self.setup_key_bindings()
         lexer = PygmentsLexer(PtgHaskellLexer)
-        history = ThreadedHistory(FileHistory(
-            os.path.expanduser(config.history_path)))
         self.initial_lines = len(list(history.load_history_strings()))
         pg_style = style_from_pygments_cls(get_style_by_name(config.style))
         bottom_toolbar_style = Style.from_dict({
@@ -142,7 +140,7 @@ class Session():
         session_start = (len(self.history.get_strings())
                          - self.get_cur_lineno())
         if hist_idx > session_start:
-            return str(hist_idx - session-start)
+            return str(hist_idx - session_start)
         else:
             return "h%d" % hist_idx
 

@@ -40,7 +40,7 @@ def handle_rerun(command, args, session, config, dispatcher):
 
     elif any([i >= len(hist_strings) for i in idxs]):
         resp = Response.from_error_message(
-                'Syntax error: %d outside range of past history' %
+                'Syntax error: %s outside range of past history' %
                 session.format_hist_idx(max(idxs)))
 
     else:

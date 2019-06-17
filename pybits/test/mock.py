@@ -58,6 +58,9 @@ class MockHistory:
     def get_strings(self):
         return self.hist_lines
 
+    def load_history_strings(self):
+        return self.hist_lines
+
 
 class PromptDriver(threading.Thread):
     def __init__(self):
@@ -84,17 +87,18 @@ class PromptDriver(threading.Thread):
 
     def run(self):
         outer = self
+        history = MockHistory()
         class MockPrompt:
             def __init__(self, *args, **kwargs):
                 self.args = args
                 self.kwargs = kwargs
-                self.history = MockHistory()
+                self.history = history
 
             def prompt(self):
                 v = outer.next_input()
                 self.history.add_line(v)
                 return v
-        self.app = app.App(MockPrompt, self.ptprint, oop_engine=True)
+        self.app = app.App(MockPrompt, history, self.ptprint, oop_engine=True)
         self.app.run()
 
     def expect(self, regex, timeout=None):
