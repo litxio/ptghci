@@ -33,7 +33,7 @@ dropOneAndParse = genericParseJSON opts
   where
     opts = defaultOptions {A.fieldLabelModifier = drop 1}
 
-defaultConfig = Config (Just Debug) (Just "log.txt") Nothing Nothing
+defaultConfig = Config Nothing Nothing Nothing Nothing
 
 getConfig :: IO Config
 getConfig = do
