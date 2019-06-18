@@ -260,7 +260,7 @@ startGhciProcess process echo0 = do
                 case el of
                   Left e -> do
                     let msg = "Got EOF from GHCi on " <> show stream <> " during startup"
-                    streamLog msg >> putErrLn msg
+                    streamLog msg -- >> putErrLn msg
                     throwIO e
                   Right s -> do
                     -- putStrLn $ "Appending  to" ++ show stream ++ ": " ++ s
@@ -269,9 +269,13 @@ startGhciProcess process echo0 = do
                             && any (`isPrefixOf` s) ["GHCi, version ","GHCJSi, version "]) $
                       readDuringStartup stream
 
-        withAsync (readDuringStartup Stdout) $ \outThread ->
-          withAsync (readDuringStartup Stderr) $ \errThread -> do
-            wait outThread
+        catch (withAsync (readDuringStartup Stdout) $ \outThread ->
+                withAsync (readDuringStartup Stderr) $ \errThread -> do
+                  wait outThread)
+              (\(e :: SomeException) -> do
+                putErrLn "-- GHCi startup failed, output follows --"
+                readIORef stdout >>= putStrLn . unlines
+                readIORef stderr >>= putStrLn . unlines )
 
         -- Set up the GHCi environment
         writeInp "import qualified System.IO as INTERNAL_GHCID"
