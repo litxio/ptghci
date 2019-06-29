@@ -37,8 +37,8 @@ runPythonInProc :: Env -> Sockets -> IO ()
 runPythonInProc env sockets = do
   sockAddrs <- socketEndpoints sockets
 
-  (appThread, quitApp) <- runApp env sockets
   withAsync (startPythonApp env sockAddrs) $ \pyThread -> do
+    (appThread, quitApp) <- runApp env sockets
     res <- waitEither pyThread appThread
     case res of
       Left () -> quitApp

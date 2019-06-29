@@ -265,6 +265,7 @@ startGhciProcess process echo0 = do
                   Right s -> do
                     -- putStrLn $ "Appending  to" ++ show stream ++ ": " ++ s
                     modifyIORef (if stream == Stdout then stdout else stderr) (s:)
+                    echo0 stream s
                     unless (stream == Stdout 
                             && any (`isPrefixOf` s) ["GHCi, version ","GHCJSi, version "]) $
                       readDuringStartup stream
