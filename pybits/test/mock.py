@@ -122,7 +122,7 @@ class PromptDriver(threading.Thread):
     def __enter__(self):
         self.start()
         # Wait for GHCi to be ready
-        self.expect('ghci', 30)
+        self.expect('Loaded ', 30)
         return self
 
     def __exit__(self, type, value, traceback):

@@ -13,17 +13,16 @@ from prompt_toolkit import print_formatted_text, ANSI
 from subprocess import Popen, DEVNULL, PIPE
 import colors
 
-SYNC_RE = re.compile(r'#~PTGHCI~SYNC~(\d+)~#')
+SYNC_RE = re.compile(r'\d #~PTGHCI~SYNC~(\d+)~#')
 
 class StreamEchoThread(threading.Thread):
     """
     Read from a zmq socket and echo to the appropriate stream (stdout or
     stderr)
     """
-    def __init__(self, socket: zmq.Socket, stream, pt_print):
+    def __init__(self, socket: zmq.Socket, pt_print):
         self.socket = socket
         socket.setsockopt(zmq.SUBSCRIBE, b"")  # Listen to everything
-        self.stream = stream
         threading.Thread.__init__(self)
         self.daemon = True
         self.sync_condition = threading.Condition()
@@ -41,7 +40,14 @@ class StreamEchoThread(threading.Thread):
                 with self.sync_condition:
                     self.sync_condition.notify_all()
             else:
-                self.pt_print(ANSI(message), file=self.stream)
+                stream, contents = message[0], message[2:]
+                if stream == '1':
+                    self.pt_print(ANSI(contents), file=sys.stdout)
+                elif stream == '2':
+                    self.pt_print(ANSI(contents), file=sys.stderr)
+                else:
+                    raise ValueError("Bad stream identifier.  Expected 1 or 2"
+                                     " but got "+str(stream))
 
     def await_sync(self, sync_seq: int):
         with self.sync_condition:
@@ -78,30 +84,23 @@ class Engine():
         self.ctx = zmq.Context.instance()
         self.comm_socket = self.ctx.socket(zmq.REQ)
         self.ctrl_socket = self.ctx.socket(zmq.PAIR)
-        self.stdout_socket = self.ctx.socket(zmq.SUB)
-        self.stderr_socket = self.ctx.socket(zmq.SUB)
+        self.iopub_socket = self.ctx.socket(zmq.SUB)
         self.comm_socket.setsockopt(zmq.constants.REQ_CORRELATE, 1)
         self.comm_socket.setsockopt(zmq.constants.REQ_RELAXED, 1)
         comm_addr = os.environ['PTGHCI_REQUEST_ADDR']
         ctrl_addr = os.environ['PTGHCI_CONTROL_ADDR']
-        stdout_addr = os.environ['PTGHCI_STDOUT_ADDR']
-        stderr_addr = os.environ['PTGHCI_STDERR_ADDR']
+        iopub_addr = os.environ['PTGHCI_IOPUB_ADDR']
         self.comm_socket.connect(comm_addr)
         self.ctrl_socket.connect(ctrl_addr)
-        self.stdout_socket.connect(stdout_addr)
-        self.stderr_socket.connect(stderr_addr)
+        self.iopub_socket.connect(iopub_addr)
         # comm_port = self.comm_socket.bind_to_random_port("tcp://127.0.0.1")
         # ctrl_port = self.ctrl_socket.bind_to_random_port("tcp://127.0.0.1")
-        # stdout_port = self.stdout_socket.bind_to_random_port("tcp://127.0.0.1")
-        # stderr_port = self.stderr_socket.bind_to_random_port("tcp://127.0.0.1")
+        # stdout_port = self.iopub_socket.bind_to_random_port("tcp://127.0.0.1")
 
-        self.stdout_thread = StreamEchoThread(self.stdout_socket, sys.stdout,
-                                              pt_print=pt_print)
-        self.stderr_thread = StreamEchoThread(self.stderr_socket, sys.stderr,
-                                              pt_print=pt_print)
+        self.iopub_thread = StreamEchoThread(self.iopub_socket, 
+                                             pt_print=pt_print)
 
-        self.stdout_thread.start()
-        self.stderr_thread.start()
+        self.iopub_thread.start()
 
 
     @classmethod
@@ -114,8 +113,7 @@ class Engine():
         self.ctx = zmq.Context.instance()
         self.comm_socket = self.ctx.socket(zmq.REQ)
         self.ctrl_socket = self.ctx.socket(zmq.PAIR)
-        self.stdout_socket = self.ctx.socket(zmq.SUB)
-        self.stderr_socket = self.ctx.socket(zmq.SUB)
+        self.iopub_socket = self.ctx.socket(zmq.SUB)
         self.comm_socket.setsockopt(zmq.constants.REQ_CORRELATE, 1)
         self.comm_socket.setsockopt(zmq.constants.REQ_RELAXED, 1)
 
@@ -137,20 +135,15 @@ class Engine():
                            bufsize=1, universal_newlines=True)
         
         endpoints_line = self._proc.stdout.readline()
-        comm_addr, ctrl_addr, stdout_addr, stderr_addr \
-            = ast.literal_eval(endpoints_line)
+        comm_addr, ctrl_addr, iopub_addr = ast.literal_eval(endpoints_line)
         self.comm_socket.connect(comm_addr)
         self.ctrl_socket.connect(ctrl_addr)
-        self.stdout_socket.connect(stdout_addr)
-        self.stderr_socket.connect(stderr_addr)
+        self.iopub_socket.connect(iopub_addr)
         
-        self.stdout_thread = StreamEchoThread(self.stdout_socket, sys.stdout,
-                                              pt_print=pt_print)
-        self.stderr_thread = StreamEchoThread(self.stderr_socket, sys.stderr,
-                                              pt_print=pt_print)
+        self.iopub_thread = StreamEchoThread(self.iopub_socket,
+                                             pt_print=pt_print)
 
-        self.stdout_thread.start()
-        self.stderr_thread.start()
+        self.iopub_thread.start()
         return self
 
     def execute(self, code: str):
@@ -175,8 +168,7 @@ class Engine():
             # Wait for the sync message
             # What if we get interrupted? 
             try:
-                self.stdout_thread.await_sync(message['syncVal'])
-                self.stderr_thread.await_sync(message['syncVal'])
+                self.iopub_thread.await_sync(message['syncVal'])
             except KeyboardInterrupt as interrupt:
                 self.send_interrupt()
 

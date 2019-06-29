@@ -38,8 +38,7 @@ import Language.Haskell.PtGhci.Log
 data Sockets = Sockets 
   { requestSock :: Socket Rep
   , controlSock :: Socket Pair
-  , stdoutSock :: Socket Pub
-  , stderrSock :: Socket Pub 
+  , iopubSock :: Socket Pub
   }
 
 setupSockets :: IO Sockets
@@ -47,20 +46,17 @@ setupSockets = do
   ctx <- context
   requester <- socket ctx Rep
   controlSock <- socket ctx Pair
-  stdoutSock <- socket ctx Pub
-  stderrSock <- socket ctx Pub
+  iopubSock <- socket ctx Pub
   bind requester "tcp://127.0.0.1:*"
   bind controlSock "tcp://127.0.0.1:*"
-  bind stdoutSock "tcp://127.0.0.1:*"
-  bind stderrSock "tcp://127.0.0.1:*"
-  return $ Sockets requester controlSock stdoutSock stderrSock
+  bind iopubSock "tcp://127.0.0.1:*"
+  return $ Sockets requester controlSock iopubSock
 
-socketEndpoints :: Sockets -> IO (String, String, String, String)
+socketEndpoints :: Sockets -> IO (String, String, String)
 socketEndpoints Sockets{..} = do
-  eps <- try $ (,,,) <$> lastEndpoint requestSock
+  eps <- try $ (,,) <$> lastEndpoint requestSock
                      <*> lastEndpoint controlSock
-                     <*> lastEndpoint stdoutSock
-                     <*> lastEndpoint stderrSock
+                     <*> lastEndpoint iopubSock
   case eps of
     Left (err :: ZMQError) -> do
       putErrLn $ "Error getting ZeroMQ socket endpoints: "
@@ -77,8 +73,8 @@ runApp env sockets = do
         case stream of
           -- TODO -- double conversion inefficient
           Stdout ->
-            send (stdoutSock sockets) [] $ toS (stripInternalGhcid $ toS val)
-          Stderr -> send (stderrSock sockets) [] $ toS (stripInternalGhcid $ toS val)
+            send (iopubSock sockets) [] $ "1 "<>toS (stripInternalGhcid $ toS val)
+          Stderr -> send (iopubSock sockets) [] $ "2 "<>toS (stripInternalGhcid $ toS val)
 
   ghciCommand <- case _ghciCommand (env^.config) of
                    Just cmd -> return $ unpack cmd
@@ -125,7 +121,7 @@ runApp env sockets = do
                                             else ExecCaptureResponse True (T.unlines (outRes ++ errRes))
                           sendResponse env requestSock response
 
-            -- Don't capture result, just echo over the stdout/stderr sockets
+            -- Don't capture result, just echo over the iopub socket
             RequestExecStream code -> do
               seq <- runMultilineStream ghci sockets code
               let response = ExecStreamResponse True Nothing seq

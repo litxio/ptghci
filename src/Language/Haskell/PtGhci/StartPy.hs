@@ -22,8 +22,8 @@ data PyObject = PyObject
 type PyObjectPtr = Ptr PyObject
 
 -- | Starts the Python interpreter and hands over control
-startPythonApp :: Env -> (String, String, String, String) -> IO ()
-startPythonApp env (requestAddr, controlAddr, stdoutAddr, stderrAddr) = do
+startPythonApp :: Env -> (String, String, String) -> IO ()
+startPythonApp env (requestAddr, controlAddr, iopubAddr) = do
   ourpp <- getDataFileName "pybits"
   pythonPath0 <- lookupEnv "PYTHONPATH"
   let pythonPath = case pythonPath0 of
@@ -33,8 +33,7 @@ startPythonApp env (requestAddr, controlAddr, stdoutAddr, stderrAddr) = do
   setEnv "PYTHONPATH" pythonPath
   setEnv "PTGHCI_REQUEST_ADDR" requestAddr
   setEnv "PTGHCI_CONTROL_ADDR" controlAddr
-  setEnv "PTGHCI_STDOUT_ADDR" stdoutAddr
-  setEnv "PTGHCI_STDERR_ADDR" stderrAddr
+  setEnv "PTGHCI_IOPUB_ADDR" iopubAddr
   printDebugInfo env
   s <- newCString $ unlines [ "import os, sys"
                              ,"from ptghci.app import App"
