@@ -1,4 +1,4 @@
-
+from ptghci.response import Response
 
 def run(session, dispatcher, cmd, args):
     filename = args.strip()
@@ -6,13 +6,12 @@ def run(session, dispatcher, cmd, args):
         with open(filename) as f:
             lines = f.readlines()
     except FileNotFoundError:
-        return {'success': False,
-                'content': 'File %s not found' % args}
+        return Response.from_error_message('File %s not found' % args)
 
     n_execs = 0
     cur = []
     result_lines = []
-    
+
     # Split lines into groups.  Start a new group when the first char on a line
     # is not a space.
     cur_group = []
@@ -29,20 +28,18 @@ def run(session, dispatcher, cmd, args):
 
     for g in groups:
         # Start a new group
-        result_lines.extend(['> '+c for c  in g])
+        result_lines.extend(['> '+c.rstrip() for c  in g])
         to_exec = '\n'.join(g)
         resp = dispatcher.dispatch(to_exec)
-        if resp['success']:
-            result_lines.extend(['< '+c 
-                                for c in resp['content'].splitlines()])
-        else:
-            result_lines.append("Error: ")
-            result_lines.extend(resp['content'])
-            break
+        # if resp.success:
+        #     result_lines.extend(['< '+c for c in resp.content.splitlines()])
+        # else:
+        #     result_lines.append("Error: ")
+        #     result_lines.extend(resp.content)
+        #     break
         n_execs += 1
 
-    return {'success': True,
-            'content': (('Executed %d commands,'
-                        ' assignments and top-level declarations\n')%n_execs)
-                        + '\n'.join(result_lines)}
+    return Response.from_value(('Executed %d commands assignments '
+                                'and top-level declarations\n')%n_execs
+                               + '\n'.join(result_lines))
 
