@@ -53,7 +53,7 @@ class Session():
             prompt_continuation=default_continuation,
             bottom_toolbar=self.bottom_toolbar if config.type_bar_enabled
                            else None)
-        self._psession.message = self.in_prompt_message
+        self._psession.message = lambda: ANSI(self.in_prompt_message())
 
         if config.vi_mode:
             vimcursor.setup_vim_cursor()
@@ -98,11 +98,10 @@ class Session():
         return bindings
 
     def in_prompt_message(self):
-        return ANSI(self.config.input_prompt.format(
-            lineno=self.get_cur_lineno()))
+        return self.config.input_prompt.format(lineno=self.get_cur_lineno())
 
     def out_prompt_message(self):
-        return ANSI(self.config.out_prompt.format(lineno=self.get_cur_lineno()))
+        return self.config.out_prompt.format(lineno=self.get_cur_lineno())
 
     def prompt(self):
         return self._psession.prompt()

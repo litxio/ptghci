@@ -51,7 +51,6 @@ def handle_rerun(command, args, session, config, dispatcher):
         success = True
         for idx in idxs:
             msg = dispatcher.dispatch(hist_strings[idx-1])
-            # print_formatted_text(ANSI(msg.content))
             success = msg.success and success
 
         resp = Response(Response.Stream)

@@ -1,7 +1,6 @@
 import os
 import re
 from prompt_toolkit.application.current import get_app
-from prompt_toolkit import ANSI
 import yaml
 
 DEFAULTS = {

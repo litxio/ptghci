@@ -9,7 +9,7 @@ import time
 import threading
 from .exceptions import GhciException
 from .response import Response
-from prompt_toolkit import print_formatted_text, ANSI
+from prompt_toolkit import print_formatted_text
 from subprocess import Popen, DEVNULL, PIPE
 import colors
 
@@ -44,9 +44,9 @@ class StreamEchoThread(threading.Thread):
             elif not self.interrupted:
                 stream, contents = message[0], message[2:]
                 if stream == '1':
-                    self.pt_print(ANSI(contents), file=sys.stdout)
+                    self.pt_print(contents, file=sys.stdout)
                 elif stream == '2':
-                    self.pt_print(ANSI(contents), file=sys.stderr)
+                    self.pt_print(contents, file=sys.stderr)
                 else:
                     raise ValueError("Bad stream identifier.  Expected 1 or 2"
                                      " but got "+str(stream))

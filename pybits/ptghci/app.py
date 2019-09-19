@@ -21,10 +21,24 @@ def int_handler(sig, frame):
     signal.default_int_handler(sig, frame)
 
 
+def print_detect_ansi(val, *more_vals, **kwargs):
+    """
+    If any val has escape codes, wrap all the vals in ANSI and print with
+    print_formatted_text.  Otherwise, print with plain old python print.
+    This is much faster than printing everything with print_formatted_text.
+    """
+    has_escape = '\x1b' in val or any(['\x1b' in more_vals])
+    if has_escape:
+        print_formatted_text(ANSI(val), *[ANSI(v) for v in more_vals],
+                             **kwargs)
+    else:
+        print(val, *more_vals, **kwargs)
+
+
 class App:
     def __init__(self, PtPromptSession=PromptSession,
                  history=None,
-                 pt_print=print_formatted_text,
+                 pt_print=print_detect_ansi,
                  oop_engine=False):
 
         if isinstance(threading.current_thread(), threading._MainThread):
@@ -58,7 +72,7 @@ class App:
                                                   self.ngin)
 
             load_messages = self.ngin.get_load_messages()
-            self.pt_print(ANSI(load_messages))
+            self.pt_print(load_messages)
             while True:
                 try:
                     # Wait a bit for any information on the stdout socket to be
@@ -86,7 +100,7 @@ class App:
                         resp = self.dispatcher.dispatch(entry)
 
                         if resp.kind == response.Response.Value:
-                            self.pt_print(ANSI(resp.content))
+                            self.pt_print(resp.content)
                         elif resp.kind == response.Response.Error:
                             print(colors.color('Error: ', fg='red',
                                                style='bold')
@@ -100,7 +114,7 @@ class App:
                         traceback.print_exc()
 
                 except KeyboardInterrupt:
-                    self.pt_print(ANSI("\n\033[1;31mInterrupted\033[0m\n"))
+                    self.pt_print("\n\033[1;31mInterrupted\033[0m\n")
                 finally:
                     self.session.advance_lineno()
 

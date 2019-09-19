@@ -1,5 +1,5 @@
 from ptghci import app
-from prompt_toolkit import print_formatted_text, ANSI
+from prompt_toolkit import print_formatted_text
 import io
 import queue
 import re
@@ -40,7 +40,7 @@ def pretty_to_string(pretty_text):
     buffer.encoding = 'utf8'
     buffer.fileno = lambda: 0
 
-    print_formatted_text(pretty_text, file=buffer)
+    print_formatted_text(strip_ansi(pretty_text), file=buffer)
     return strip_ansi(buffer.getvalue().decode())
 
 
