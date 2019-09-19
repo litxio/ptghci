@@ -28,6 +28,7 @@ class StreamEchoThread(threading.Thread):
         self.sync_condition = threading.Condition()
         self.last_sync_seq = -1
         self.pt_print = pt_print
+        self.interrupted = False
 
     def run(self):
         while True:
@@ -39,7 +40,8 @@ class StreamEchoThread(threading.Thread):
                 self.last_sync_seq = int(m.group(1))
                 with self.sync_condition:
                     self.sync_condition.notify_all()
-            else:
+                self.interrupted = False
+            elif not self.interrupted:
                 stream, contents = message[0], message[2:]
                 if stream == '1':
                     self.pt_print(ANSI(contents), file=sys.stdout)
@@ -57,6 +59,9 @@ class StreamEchoThread(threading.Thread):
                     lambda: self.last_sync_seq >= sync_seq,
                     timeout=0.01
                 )
+
+    def interrupt(self):
+        self.interrupted = True
 
 
 def _response_from_reply(reply: dict) -> Response:
@@ -282,6 +287,7 @@ class Engine():
 
     def send_interrupt(self):
         self.ctrl_socket.send(b'Interrupt')
+        self.iopub_thread.interrupt()
 
     def finish(self):
         try:
