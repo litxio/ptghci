@@ -99,13 +99,11 @@ startGhciProcess process echo0 = do
         -- string and filter that out.
         -- At various points I need to ensure everything the user is waiting for has completed
         -- So I send messages on stdout/stderr and wait for them to arrive
-        -- is anyone running running an exec statement, ensure only one person talks to ghci at a time
+        --
+        -- The lock ensures only one thread talks to ghci at a time.
         isRunning <- newLock
             
         ghciUnique <- newUnique
-
-        ghciCapturedOut <- newEmptyTMVarIO
-        ghciCapturedErr <- newEmptyTMVarIO
 
         nextSeq <- newTVarIO 0
         ghciLastSeqSeenOut <- newTVarIO (-1)
@@ -130,35 +128,65 @@ startGhciProcess process echo0 = do
                      else streamLog $ entry ++ " doesn't look like a command"
                   writeInp entry
                   unless (isGhciCommand entry) $ writeInp "let that = it"
-                  -- Make sure INTERNAL_GHCID doens't go out of scope when the
+                  -- Make sure INTERNAL_GHCID doesn't go out of scope when the
                   -- user types :module or :load
                   when (resetsModules entry) $
                     writeInp "import qualified System.IO as INTERNAL_GHCID"
                   sendSignals seq
                   -- unless (isGhciCommand entry) $ writeInp "let it = __ptghci_it"
 
+        -- Make sure we've seen the latest signal on both streams, and return
+        -- the next signal.
+        let syncSeq :: STM Int
+            syncSeq = do
+              s <- readTVar nextSeq
+              awaitSignal Stdout (s-1) -- Make sure we're caught up
+              awaitSignal Stderr (s-1) -- Make sure we're caught up
+              return s
+
+            cycleSeq :: IO ()
+            cycleSeq = do
+              s <- atomically syncSeq
+              sendSignals s
+              void $ atomically syncSeq
+
+        -- It seems that, after interrupting GHCi, the next signal I send for
+        -- stdout gets swallowed up - I never see it [#16].  To compensate, I
+        -- do an extra signal/sync cycle after an interrupt.  This flag
+        -- indicates that we should do so before handling the next request.
+        justInterrupted <- newIORef False
+
+        let ghciInterrupt = do
+              streamLog "Interrupting GHCi"
+              interruptProcessGroupOf ghciProcess
+              writeIORef justInterrupted True
+
         let ghciExec :: String -> IO Int  -- Return the signal value
             ghciExec entry =
               withLock isRunning $ do
-                  seq <- atomically $ do
-                    s <- readTVar nextSeq
-                    awaitSignal Stdout (s-1) -- Make sure we're caught up
-                    awaitSignal Stderr (s-1) -- Make sure we're caught up
-                    return s
+                  whenM (readIORef justInterrupted) $
+                    cycleSeq >> writeIORef justInterrupted False
+                  seq <- atomically syncSeq
                    
                   submitInput entry seq
                   atomically $ modifyTVar nextSeq (+1)
                   return seq
 
+        -- Storage for capturing stdout/stderr
+        ghciCapturedOut <- newEmptyTMVarIO
+        ghciCapturedErr <- newEmptyTMVarIO
 
-        let ghciExecCapture :: String -> IO ([String], [String])  -- Return the signal value
+        -- | ghciExecCapture works by setting ghciCapturingSeq (which tells
+        -- watchStream that we are doing a capture) and then waiting for the
+        -- next signal.
+        let ghciExecCapture :: String -> IO ([String], [String])
             ghciExecCapture entry =
               -- withLock isInterrupting $ return ()
               withLock isRunning $ do
+                  whenM (readIORef justInterrupted) $
+                    cycleSeq >> writeIORef justInterrupted False
                   seq <- atomically $ do
-                    s <- readTVar nextSeq
-                    awaitSignal Stdout (s-1) -- Make sure we're caught up
-                    awaitSignal Stderr (s-1) -- Make sure we're caught up
+                    s <- syncSeq
                     putTMVar ghciCapturingSeq s
                     return s
 
@@ -180,9 +208,6 @@ startGhciProcess process echo0 = do
                             dropTrailingBlank (s:ss) = s:dropTrailingBlank ss
 
 
-        let ghciInterrupt = do
-              streamLog "Interrupting GHCi"
-              interruptProcessGroupOf ghciProcess
 
         -- sendSignals results in a lot of "it :: ()" being printed out, when
         -- ':set +t' is active so ignore those.  TODO: Note that this isn't 
@@ -225,7 +250,8 @@ startGhciProcess process echo0 = do
                           dupSig = ((<= lastSeq) <$> mbSig) == Just True && null val
 
                       unless dupSig $ do
-                        if capture then modifyIORef captureBuffer (val:)
+                        if capture then do streamLog "(captured)"
+                                           modifyIORef captureBuffer (val:)
                                    -- DO send the signal, provided it's not a duplicate
                                    else echo0 stream val'
 
@@ -272,7 +298,9 @@ startGhciProcess process echo0 = do
 
         catch (withAsync (readDuringStartup Stdout) $ \outThread ->
                 withAsync (readDuringStartup Stderr) $ \errThread -> do
-                  wait outThread)
+                  wait outThread 
+                  errThread `cancelWith` StartupIsFinished
+                  void $ waitCatch errThread)
               (\(e :: SomeException) -> do
                 putErrLn "-- GHCi startup failed, output follows --"
                 readIORef stdout >>= putStrLn . unlines
@@ -295,14 +323,21 @@ startGhciProcess process echo0 = do
 
         errMsgs <- readIORef stderr
         outMsgs <- readIORef stdout
+
         -- Run execCapture once to capture any leftover text sitting on stdout/stderr.
         -- We also use this opportunity to see whether we have started up properly
         res <- try $ execCapture ghci "0" :: IO (Either SomeException ([String], [String]))
-        when (isLeft res) $ do
-          putErrLn "It looks like GHCi did not start up properly.  The start-up messages were:"
-          putErrLn $ unlines errMsgs
-          putStrLn $ unlines outMsgs
-          die "GHCi did not start up properly"
+        (moreOutput, moreErrs) 
+          <- case res of
+               Left exc -> do
+                 streamLog $ "Critical exception in execCapture: " ++ show exc
+                 putErrLn "It looks like GHCi did not start up properly.  The start-up messages were:"
+                 putErrLn $ unlines errMsgs
+                 putStrLn $ unlines outMsgs
+                 die "GHCi did not start up properly"
+               Right more -> return more
+        -- traverse (echo0 Stdout) moreOutput
+        traverse (echo0 Stderr) moreErrs
 
         let r1 = parseLoad . reverse $ errMsgs ++ outMsgs
         r2 <- if any isLoading r1 then return [] else map (uncurry Loading) <$> showModules ghci
@@ -320,7 +355,7 @@ startGhci cmd directory = startGhciProcess (shell cmd){cwd=directory}
 -- | Send a command, get lines of result from stdout and stderr.
 -- Must be called single-threaded.
 execCapture :: Ghci -> String -> IO ([String], [String])
-execCapture = ghciExecCapture
+execCapture g s = ghciExecCapture g s
 
 -- | Execute a command, echoing results over streams
 execStream :: Ghci -> String -> IO Int
