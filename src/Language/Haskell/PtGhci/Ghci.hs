@@ -313,6 +313,7 @@ startGhciProcess process echo0 = do
         writeInp "INTERNAL_GHCID.hSetBuffering INTERNAL_GHCID.stderr INTERNAL_GHCID.LineBuffering"
         -- Put a newline after the prompt, because we are using line buffering
         writeInp $ ":set prompt " ++ "\"" ++ prompt ++ "\\n\""
+        writeInp ":set prompt-cont \"\""
 
         -- failure isn't harmful here, so set flags one-by-one
         forM_ (ghciFlagsRequired ++ ghciFlagsRequiredVersioned) $ \flag ->
