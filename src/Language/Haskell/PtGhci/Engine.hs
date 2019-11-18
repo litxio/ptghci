@@ -7,9 +7,9 @@ import Language.Haskell.PtGhci.Prelude hiding (Rep)
 import Control.Monad
 import Control.Exception (try, AsyncException(..))
 import Text.Printf
-import GHC.Base as Base 
 import Data.IORef
 import Data.Maybe
+import Data.List (last)
 import System.ZMQ4
 import System.Environment (getArgs)
 import Data.Aeson
@@ -213,11 +213,28 @@ runLine ghci cmd = do
     both f = bimap f f
 
 runMultiline :: Ghci -> Text -> IO ([Text], [Text])
-runMultiline ghci cmd = runLine ghci (":{\n"<>cmd<>"\n:}\n")
+runMultiline ghci cmd = do
+  let cmds = splitOnCommands cmd
+  res <- for cmds $ \c -> runLine ghci (":{\n"<>c<>"\n:}\n")
+  return $! foldr (\(out,err) (outs,errs) -> (out++outs, err++errs)) ([],[]) res
 
 runMultilineStream :: Ghci -> Sockets -> Text -> IO Int
-runMultilineStream ghci Sockets{..} cmd =
-  execStream ghci (":{\n"++T.unpack cmd++"\n:}\n")
+runMultilineStream ghci Sockets{..} cmd = do
+  let cmds = splitOnCommands cmd
+  res <- for cmds $ \c -> execStream ghci (T.unpack $ ":{\n"<>c<>"\n:}\n")
+  return $! last res
+
+-- | Split on import and : commands, as these need to be given to GHCi one by
+-- one.
+splitOnCommands :: Text -> [Text]
+splitOnCommands = fmap T.unlines . splitOn isCommandLike . T.lines 
+  where
+    isCommandLike s = ":" `T.isPrefixOf` s || "import " `T.isPrefixOf` s
+    splitOn :: (a -> Bool) -> [a] -> [[a]]
+    splitOn f [] = []
+    splitOn f (s : ss)
+      | f s = [s] : splitOn f ss
+      | otherwise = (s : takeWhile (not . f) ss) : splitOn f (dropWhile (not . f) ss)
 
 runCompletion :: Ghci -> Text -> IO PtgResponse
 runCompletion ghci lineBeforeCursor = do
