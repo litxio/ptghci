@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.1.
+-- This file has been generated from package.yaml by hpack version 0.31.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ac73f3fd2e816529844ee5b097835f9070a265f0c90f605e2b5ea99cc8a75214
+-- hash: f79986c0e775da1bc680e43e6a4c37f6b185bb4686fbec2bf37d2edcf303f5e1
 
 name:           ptghci
 version:        0.1.0.0
@@ -53,6 +53,11 @@ source-repository head
   type: git
   location: https://github.com/litxio/ptghci
 
+flag use-python-embed
+  description: Use python3-embed pkg-config. Required if using Python 3.8+
+  manual: False
+  default: False
+
 library
   exposed-modules:
       Language.Haskell.Ghcid.Escape
@@ -78,8 +83,6 @@ library
   hs-source-dirs:
       src
   default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules LambdaCase
-  pkgconfig-depends:
-      python3
   build-depends:
       aeson
     , ansi-terminal
@@ -106,6 +109,12 @@ library
     , unordered-containers
     , yaml
     , zeromq4-haskell
+  if flag(use-python-embed)
+    pkgconfig-depends:
+        python3-embed
+  else
+    pkgconfig-depends:
+        python3
   default-language: Haskell2010
 
 executable ptghci
@@ -115,7 +124,7 @@ executable ptghci
   hs-source-dirs:
       app
   default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules LambdaCase
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N1
   build-depends:
       aeson
     , ansi-terminal

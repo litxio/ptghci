@@ -17,7 +17,6 @@ except ImportError:
     pass
 
 def int_handler(sig, frame):
-    #print("Python - Got SIGINT")
     signal.default_int_handler(sig, frame)
 
 
@@ -41,7 +40,7 @@ class App:
                  pt_print=print_detect_ansi,
                  oop_engine=False):
 
-        if isinstance(threading.current_thread(), threading._MainThread):
+        if threading.current_thread() is threading.main_thread():
             signal.signal(signal.SIGINT, int_handler)
 
         self.config = settings.Settings.load()
@@ -132,5 +131,5 @@ class App:
             pass
 
 if __name__ == '__main__':
-    app = App()
+    app = App(oop_engine=True)
     app.run()

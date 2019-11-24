@@ -43,7 +43,7 @@ startPythonApp env (requestAddr, controlAddr, iopubAddr) = do
   -- Run the Python interpreter in an OS thread while having this thread listen
   -- for an AsyncCancelled exception indicating we should exit.
   done <- newEmptyMVar
-  withAsyncBound (runPy s done)
+  withAsync (runPy s done)
     $ \_ -> (handle onInterrupt $ takeMVar done)
   where
     runPy s done = do
