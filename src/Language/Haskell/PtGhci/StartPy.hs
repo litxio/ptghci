@@ -2,7 +2,7 @@
 
 module Language.Haskell.PtGhci.StartPy where
 
-import Language.Haskell.PtGhci.Prelude
+import Language.Haskell.PtGhci.Prelude hiding (unlines)
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr

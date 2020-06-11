@@ -3,7 +3,7 @@ module Language.Haskell.PtGhci.Ghci (
   Stream(..) 
   ) where
 
-import Language.Haskell.PtGhci.Prelude hiding (traceIO, appendFile)
+import Language.Haskell.PtGhci.Prelude hiding (traceIO, appendFile, unlines)
 import Debug.Trace (traceIO)
 import System.Process
 import Data.Unique

@@ -2,14 +2,14 @@
 
 module Language.Haskell.PtGhci.Engine where
 
-import Language.Haskell.PtGhci.Prelude hiding (Rep)
+import Language.Haskell.PtGhci.Prelude hiding (Rep, unwords)
 
 import Control.Monad
 import Control.Exception (try, AsyncException(..))
 import Text.Printf
 import Data.IORef
 import Data.Maybe
-import Data.List (last)
+import Data.List (last, unwords)
 import System.ZMQ4
 import System.Environment (getArgs)
 import Data.Aeson

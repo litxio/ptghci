@@ -2,7 +2,7 @@
 
 module Language.Haskell.PtGhci.Doc where
 
-import Language.Haskell.PtGhci.Prelude hiding (option, try, many, some, replace)
+import Language.Haskell.PtGhci.Prelude hiding (option, try, many, some, replace, lines)
 
 import Debug.Trace (trace)
 import Data.Void
