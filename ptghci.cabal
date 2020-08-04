@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f79986c0e775da1bc680e43e6a4c37f6b185bb4686fbec2bf37d2edcf303f5e1
+-- hash: a0ebeee557bcae5447a22a1ffd65d8a3970b134768d70b872738262849e4de1d
 
 name:           ptghci
 version:        0.1.0.0
@@ -56,7 +56,7 @@ source-repository head
 flag use-python-embed
   description: Use python3-embed pkg-config. Required if using Python 3.8+
   manual: False
-  default: False
+  default: True
 
 library
   exposed-modules:
@@ -114,7 +114,7 @@ library
         python3-embed
   else
     pkgconfig-depends:
-        python3
+        python
   default-language: Haskell2010
 
 executable ptghci

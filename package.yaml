@@ -15,7 +15,7 @@ data-files: pybits/**/*.py
 flags:
   use-python-embed:
     description: Use python3-embed pkg-config. Required if using Python 3.8+
-    default: False
+    default: True
     manual: False
 
 
@@ -89,7 +89,7 @@ library:
       then:
           pkg-config-dependencies: python3-embed
       else:
-          pkg-config-dependencies: python3
+          pkg-config-dependencies: python
 
 executables:
   ptghci:
