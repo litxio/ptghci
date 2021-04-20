@@ -1,10 +1,10 @@
--i https://pypi.org/simple
-ansicolors>=1.1.8
-prompt-toolkit>=2.0.9,<3.0
-pygments>=2.3.1
-pygtrie>=2.3
-pyyaml>=5.1
-pyzmq>=15.2.0
-six>=1.12.0
-wcwidth>=0.1.7
-zmq>=0.0.0
+-i https://pypi.org/simple/
+ansicolors==1.1.8
+prompt-toolkit==2.0.9
+pygments==2.3.1
+pygtrie==2.3
+pyyaml==5.1
+pyzmq==22.0.3
+six==1.15.0
+wcwidth==0.2.5
+zmq==0.0.0
