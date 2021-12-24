@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a0ebeee557bcae5447a22a1ffd65d8a3970b134768d70b872738262849e4de1d
+-- hash: af5d4c08d5bdf87ae8de1c143eb468cfd7280e01f5163ee7953c86d6bc265b0b
 
 name:           ptghci
 version:        0.1.0.0
@@ -82,7 +82,33 @@ library
       Paths_ptghci
   hs-source-dirs:
       src
-  default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules LambdaCase
+  default-extensions:
+      BangPatterns
+      ScopedTypeVariables
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      OverloadedStrings
+      OverloadedLists
+      KindSignatures
+      DataKinds
+      PolyKinds
+      FlexibleInstances
+      DeriveGeneric
+      RecordWildCards
+      DuplicateRecordFields
+      FlexibleContexts
+      DeriveFunctor
+      TypeOperators
+      GeneralizedNewtypeDeriving
+      TypeFamilies
+      TupleSections
+      NamedFieldPuns
+      RankNTypes
+      TypeApplications
+      StandaloneDeriving
+      NoImplicitPrelude
+      ExtendedDefaultRules
+      LambdaCase
   build-depends:
       aeson
     , ansi-terminal
@@ -123,7 +149,33 @@ executable ptghci
       Paths_ptghci
   hs-source-dirs:
       app
-  default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules LambdaCase
+  default-extensions:
+      BangPatterns
+      ScopedTypeVariables
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      OverloadedStrings
+      OverloadedLists
+      KindSignatures
+      DataKinds
+      PolyKinds
+      FlexibleInstances
+      DeriveGeneric
+      RecordWildCards
+      DuplicateRecordFields
+      FlexibleContexts
+      DeriveFunctor
+      TypeOperators
+      GeneralizedNewtypeDeriving
+      TypeFamilies
+      TupleSections
+      NamedFieldPuns
+      RankNTypes
+      TypeApplications
+      StandaloneDeriving
+      NoImplicitPrelude
+      ExtendedDefaultRules
+      LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N1
   build-depends:
       aeson
@@ -162,7 +214,33 @@ test-suite ptghci-test
       Paths_ptghci
   hs-source-dirs:
       test
-  default-extensions: BangPatterns ScopedTypeVariables MultiParamTypeClasses ScopedTypeVariables OverloadedStrings OverloadedLists KindSignatures DataKinds PolyKinds FlexibleInstances DeriveGeneric RecordWildCards DuplicateRecordFields FlexibleContexts DeriveFunctor TypeOperators GeneralizedNewtypeDeriving TypeFamilies TupleSections NamedFieldPuns RankNTypes TypeApplications StandaloneDeriving NoImplicitPrelude ExtendedDefaultRules LambdaCase
+  default-extensions:
+      BangPatterns
+      ScopedTypeVariables
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      OverloadedStrings
+      OverloadedLists
+      KindSignatures
+      DataKinds
+      PolyKinds
+      FlexibleInstances
+      DeriveGeneric
+      RecordWildCards
+      DuplicateRecordFields
+      FlexibleContexts
+      DeriveFunctor
+      TypeOperators
+      GeneralizedNewtypeDeriving
+      TypeFamilies
+      TupleSections
+      NamedFieldPuns
+      RankNTypes
+      TypeApplications
+      StandaloneDeriving
+      NoImplicitPrelude
+      ExtendedDefaultRules
+      LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck

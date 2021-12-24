@@ -1,4 +1,3 @@
-
 module Main where
 
 import Foreign.C.Types
@@ -29,7 +28,6 @@ main = do
   lookupEnv "PTGHCI_ENGINE_MODE" >>= \case
     Just _ -> runEngineMode env sockets
     Nothing -> runPythonInProc env sockets
-  
 
 -- | The normal way we run -- Python interpreter runs prompt-toolkit loop
 -- in-process.
@@ -50,10 +48,9 @@ runPythonInProc env sockets = do
 runEngineMode :: Env -> Sockets -> IO ()
 runEngineMode env sockets = do
   sockAddrs <- socketEndpoints sockets
-  
+
   -- Print the socket addresses so Python knows how to connect
   print sockAddrs >> hFlush stdout
 
   (appThread, quitApp) <- runApp env sockets
   wait appThread `finally` quitApp
-

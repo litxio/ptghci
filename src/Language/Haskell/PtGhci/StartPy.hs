@@ -34,7 +34,6 @@ startPythonApp env (requestAddr, controlAddr, iopubAddr) = do
   setEnv "PTGHCI_REQUEST_ADDR" requestAddr
   setEnv "PTGHCI_CONTROL_ADDR" controlAddr
   setEnv "PTGHCI_IOPUB_ADDR" iopubAddr
-  printDebugInfo env
   s <- newCString $ unlines [ "import os, sys"
                              ,"from ptghci.app import App"
                              ,"app = App()"
@@ -48,6 +47,7 @@ startPythonApp env (requestAddr, controlAddr, iopubAddr) = do
   where
     runPy s done = do
       pyInitialize
+      printDebugInfo env
       res <- pyRunSimpleString s
       when (res == -1) $
         logerr env $ "Python exited with an exception"
@@ -72,7 +72,7 @@ startPythonApp env (requestAddr, controlAddr, iopubAddr) = do
 
 printDebugInfo :: Env -> IO ()
 printDebugInfo env = do
-  debug env $ "Python thread starting"
+  debug env $ "Python thread started"
   pyVer <- pyGetVersion >>= peekCString
   pyPath <- pyGetPath >>= peekCWString
   debug env $ "Python version " ++ pyVer
