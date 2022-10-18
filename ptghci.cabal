@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: af5d4c08d5bdf87ae8de1c143eb468cfd7280e01f5163ee7953c86d6bc265b0b
+-- hash: c35a86189a98da5437e4adaf3cffc7055a184128f0256e9e33334184758dd618
 
 name:           ptghci
 version:        0.1.0.0
@@ -135,13 +135,13 @@ library
     , unordered-containers
     , yaml
     , zeromq4-haskell
+  default-language: Haskell2010
   if flag(use-python-embed)
     pkgconfig-depends:
         python3-embed
   else
     pkgconfig-depends:
         python
-  default-language: Haskell2010
 
 executable ptghci
   main-is: Main.hs
