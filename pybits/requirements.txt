@@ -1,7 +1,7 @@
 -i https://pypi.org/simple/
 ansicolors==1.1.8
 prompt-toolkit==2.0.9
-pygments==2.7.4
+pygments==2.15.0
 pygtrie==2.3
 pyyaml==5.4
 pyzmq==24.0.1; python_version >= '3.6'
