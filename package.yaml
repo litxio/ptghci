@@ -1,5 +1,5 @@
 name:                ptghci
-version:             0.1.0.0
+version:             0.2.0.0
 github:              "litxio/ptghci"
 license:             BSD3
 author:              "Richard Warfield"
@@ -11,12 +11,6 @@ extra-source-files:
 - ChangeLog.md
 
 data-files: pybits/**/*.py
-
-flags:
-  use-python-embed:
-    description: Use python3-embed pkg-config. Required if using Python 3.8+
-    default: True
-    manual: False
 
 
 
@@ -84,12 +78,8 @@ dependencies:
 
 library:
   source-dirs: src
-  when:
-    - condition: flag(use-python-embed)
-      then:
-          pkg-config-dependencies: python3-embed
-      else:
-          pkg-config-dependencies: python
+  pkg-config-dependencies: python3-embed
+    #extra-libraries: python3-embed
 
 executables:
   ptghci:

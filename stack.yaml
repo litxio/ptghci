@@ -68,5 +68,5 @@ flags:
 # This works around an issue with ZMQ: https://gitlab.com/twittner/zeromq-haskell/issues/65
 # Temporary fix until an upstream fix or better workaround becomes available.
 build:
-  library-profiling: true
-  executable-profiling: true
+  library-profiling: false
+  executable-profiling: false

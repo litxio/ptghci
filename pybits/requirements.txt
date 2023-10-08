@@ -1,6 +1,6 @@
 -i https://pypi.org/simple/
 ansicolors==1.1.8
-prompt-toolkit==2.0.9
+prompt-toolkit==3.0.31
 pygments==2.7.4
 pygtrie==2.3
 pyyaml==5.4

@@ -1,13 +1,13 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c35a86189a98da5437e4adaf3cffc7055a184128f0256e9e33334184758dd618
+-- hash: 84dba722c3a446eee08d9f3413942b45c54228d00c93e0a558ffd7389cccd1d0
 
 name:           ptghci
-version:        0.1.0.0
+version:        0.2.0.0
 synopsis:       High-powered REPL wrapper around GHCi based on prompt-toolkit
 description:    Please see the README on GitHub at <https://github.com/litxio/ptghci#readme>
 category:       Development
@@ -52,11 +52,6 @@ data-files:
 source-repository head
   type: git
   location: https://github.com/litxio/ptghci
-
-flag use-python-embed
-  description: Use python3-embed pkg-config. Required if using Python 3.8+
-  manual: False
-  default: True
 
 library
   exposed-modules:
@@ -109,6 +104,8 @@ library
       NoImplicitPrelude
       ExtendedDefaultRules
       LambdaCase
+  pkgconfig-depends:
+      python3-embed
   build-depends:
       aeson
     , ansi-terminal
@@ -136,12 +133,6 @@ library
     , yaml
     , zeromq4-haskell
   default-language: Haskell2010
-  if flag(use-python-embed)
-    pkgconfig-depends:
-        python3-embed
-  else
-    pkgconfig-depends:
-        python
 
 executable ptghci
   main-is: Main.hs
